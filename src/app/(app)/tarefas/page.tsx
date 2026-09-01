@@ -1,21 +1,20 @@
 import { Topbar } from "@/components/layout/topbar";
-import { TaskList } from "@/components/tarefas/task-list";
+import { TasksView } from "@/components/tarefas/tasks-view";
 import { TASKS } from "@/lib/mock-data";
+import { isAtrasada } from "@/lib/tasks";
 
 export const metadata = { title: "Tarefas · Central Emerge" };
 
 export default function TarefasPage() {
-  const abertas = TASKS.filter((t) => t.status !== "concluida").length;
+  const atrasadas = TASKS.filter(isAtrasada).length;
 
   return (
     <>
       <Topbar
         title="Tarefas"
-        description={`${abertas} tarefas abertas — equipe Emerge`}
+        description={`${TASKS.length} tarefas — ${atrasadas} atrasadas · Kanban de produção`}
       />
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
-        <TaskList tasks={TASKS} />
-      </div>
+      <TasksView />
     </>
   );
 }

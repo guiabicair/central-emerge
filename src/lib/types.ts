@@ -81,28 +81,92 @@ export interface Client {
 }
 
 /* --------------------------------------------------------------------------
- * Tarefas — lista de tasks da equipe (aba "Tarefas" da Lovable).
+ * Tarefas — Kanban de PRODUCAO DE CONTEUDO (aba "Tarefas" da Lovable).
+ * As colunas nao sao status genericos: representam um fluxo de producao
+ * (Briefing -> Solicitacao -> Em producao -> Alteracao -> Pausa ->
+ * Aprovacao) e sao customizaveis pelo usuario ("+ Nova Coluna").
  * ---------------------------------------------------------------------- */
 
-export type TaskStatus =
-  | "pendente"
-  | "em-andamento"
-  | "concluida"
-  | "atrasada";
+/** id de coluna do Kanban — string livre porque as colunas sao editaveis. */
+export type TaskColumnId = string;
+
+export interface TaskColumn {
+  id: TaskColumnId;
+  label: string;
+  accent: string;
+  descricao?: string;
+  /** colunas criadas pelo usuario (nao fazem parte do fluxo padrao) */
+  custom?: boolean;
+}
 
 export type TaskPriority = "baixa" | "media" | "alta" | "urgente";
+
+export interface TaskReference {
+  label: string;
+  url: string;
+}
+
+export interface TaskComment {
+  autorId: string;
+  texto: string;
+  /** ISO date */
+  data: string;
+}
+
+export interface TaskTimeEntry {
+  pessoaId: string;
+  horas: number;
+  /** ISO date */
+  data: string;
+}
+
+export interface TaskSubtask {
+  id: string;
+  label: string;
+  concluida: boolean;
+}
+
+export interface TaskApproval {
+  status: "pendente" | "aprovada" | "devolvida";
+  por?: string;
+  comentario?: string;
+}
+
+export interface TaskGoalLink {
+  label: string;
+  valorAlvo: number;
+  valorAtual: number;
+  unidade: string;
+}
 
 export interface Task {
   id: string;
   titulo: string;
+  /** quem executa */
   responsavelId: string;
-  status: TaskStatus;
+  /** cliente vinculado (diferente do responsavel); ausente = "Sem cliente" */
+  clienteId?: string;
+  /** coluna atual no Kanban de producao */
+  status: TaskColumnId;
   /** ISO date do prazo */
   prazo: string;
   prioridade: TaskPriority;
-  /** cliente relacionado, quando a task nasce de um contrato */
-  clienteId?: string;
-  descricao?: string;
+  categoria: string;
+  /** descricao longa / multi-linha */
+  briefing: string;
+  referencias: TaskReference[];
+  /** ids de tasks que bloqueiam esta (edge: bloqueadora -> esta) */
+  dependsOn: string[];
+  subtarefas: TaskSubtask[];
+  comentarios: TaskComment[];
+  aprovacao: TaskApproval;
+  /** link da pasta no Drive; ausente = estado vazio "Sem pasta vinculada" */
+  driveLink?: string;
+  horasEstimadas?: number;
+  /** log de tempo; total registrado = soma via totalHoras() */
+  registrosTempo: TaskTimeEntry[];
+  /** vinculo opcional com uma metrica/meta da equipe */
+  meta?: TaskGoalLink;
 }
 
 /* --------------------------------------------------------------------------
