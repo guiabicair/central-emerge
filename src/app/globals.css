@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  --color-brand: var(--brand-aqua);
+  --color-brand-lime: var(--brand-lime);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * CENTRAL EMERGE — design tokens (dark-first).
+ * Base #050506 + acento aqua #45f0d1 (herdado do emerge-propostas),
+ * lime #c9ff3f como destaque secundario (cards de tarefa / acao).
+ * O tema claro existe como fallback mas o produto e majoritariamente escuro.
+ */
+:root {
+  --brand-aqua: #45f0d1;
+  --brand-lime: #c9ff3f;
+
+  --background: #f6f7f7;
+  --foreground: #14171a;
+  --card: #ffffff;
+  --card-foreground: #14171a;
+  --popover: #ffffff;
+  --popover-foreground: #14171a;
+  --primary: #0fb89b;
+  --primary-foreground: #ffffff;
+  --secondary: #eceeee;
+  --secondary-foreground: #14171a;
+  --muted: #eceeee;
+  --muted-foreground: #5b625f;
+  --accent: #e7eae9;
+  --accent-foreground: #14171a;
+  --destructive: #dc4b4b;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: rgba(0, 0, 0, 0.16);
+  --ring: #0fb89b;
+  --chart-1: #0fb89b;
+  --chart-2: #7a9b1f;
+  --chart-3: #4f74d6;
+  --chart-4: #d98a3d;
+  --chart-5: #9a5cd6;
+  --radius: 0.85rem;
+  --sidebar: #0a0b0c;
+  --sidebar-foreground: #c7ccca;
+  --sidebar-primary: #45f0d1;
+  --sidebar-primary-foreground: #04231d;
+  --sidebar-accent: #16191b;
+  --sidebar-accent-foreground: #f1f4f3;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #45f0d1;
+}
+
+.dark {
+  --brand-aqua: #45f0d1;
+  --brand-lime: #c9ff3f;
+
+  --background: #050506;
+  --foreground: #eef1f0;
+  --card: #0f1112;
+  --card-foreground: #eef1f0;
+  --popover: #14171a;
+  --popover-foreground: #eef1f0;
+  --primary: #45f0d1;
+  --primary-foreground: #04231d;
+  --secondary: #191c1f;
+  --secondary-foreground: #eef1f0;
+  --muted: #191c1f;
+  --muted-foreground: #8b918f;
+  --accent: #1e2226;
+  --accent-foreground: #eef1f0;
+  --destructive: #ff5d5d;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #45f0d1;
+  --chart-1: #45f0d1;
+  --chart-2: #c9ff3f;
+  --chart-3: #7c9cff;
+  --chart-4: #ff8f6b;
+  --chart-5: #c98bff;
+  --sidebar: #0a0b0c;
+  --sidebar-foreground: #c7ccca;
+  --sidebar-primary: #45f0d1;
+  --sidebar-primary-foreground: #04231d;
+  --sidebar-accent: #16191b;
+  --sidebar-accent-foreground: #f1f4f3;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-ring: #45f0d1;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ---- React Flow (view em nos) — tema escuro ComfyUI-like ---- */
+.emerge-flow {
+  --xy-background-color: #050506;
+  --xy-edge-stroke: rgba(255, 255, 255, 0.18);
+  --xy-edge-stroke-width: 1.5;
+  --xy-attribution-background-color: transparent;
+}
+.emerge-flow .react-flow__attribution {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 10px;
+}
+.emerge-flow .react-flow__attribution a {
+  color: rgba(255, 255, 255, 0.35);
+}
+.emerge-flow .react-flow__handle {
+  width: 7px;
+  height: 7px;
+  border: none;
+  background: var(--brand-aqua);
+}
+.emerge-flow .react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+.emerge-flow .react-flow__edge.is-progression .react-flow__edge-path {
+  stroke: color-mix(in oklch, var(--brand-aqua), transparent 45%);
+}
