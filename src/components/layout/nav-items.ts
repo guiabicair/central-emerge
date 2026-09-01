@@ -22,9 +22,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/pipeline", label: "Pipeline", icon: Workflow, ready: true },
   { href: "/propostas", label: "Propostas", icon: FileText },
-  { href: "/financeiro", label: "Financeiro", icon: Wallet },
-  { href: "/tarefas", label: "Tarefas", icon: ListChecks },
-  { href: "/clientes", label: "Clientes", icon: Users },
+  { href: "/financeiro", label: "Financeiro", icon: Wallet, ready: true },
+  { href: "/tarefas", label: "Tarefas", icon: ListChecks, ready: true },
+  { href: "/clientes", label: "Clientes", icon: Users, ready: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];

@@ -57,3 +57,78 @@ export interface Lead {
   origem?: string;
   observacao?: string;
 }
+
+/* --------------------------------------------------------------------------
+ * Clientes — negocios ja fechados (a aba "Clientes" da Lovable).
+ * Nao confundir com Lead: um Cliente pode ter nascido de um Lead com
+ * stage "fechado" (origemLeadId) ou ter sido cadastrado direto.
+ * ---------------------------------------------------------------------- */
+
+export type ClientStatus = "ativo" | "pausado" | "encerrado";
+
+export interface Client {
+  id: string;
+  nome: string;
+  empresa: string;
+  segmento: string;
+  /** valor do contrato em BRL (mensal ou total — tratado como recorrente aqui) */
+  valorContrato: number;
+  responsavelId: string;
+  status: ClientStatus;
+  /** ISO date do fechamento do contrato */
+  fechadoEm: string;
+  origemLeadId?: string;
+}
+
+/* --------------------------------------------------------------------------
+ * Tarefas — lista de tasks da equipe (aba "Tarefas" da Lovable).
+ * ---------------------------------------------------------------------- */
+
+export type TaskStatus =
+  | "pendente"
+  | "em-andamento"
+  | "concluida"
+  | "atrasada";
+
+export type TaskPriority = "baixa" | "media" | "alta" | "urgente";
+
+export interface Task {
+  id: string;
+  titulo: string;
+  responsavelId: string;
+  status: TaskStatus;
+  /** ISO date do prazo */
+  prazo: string;
+  prioridade: TaskPriority;
+  /** cliente relacionado, quando a task nasce de um contrato */
+  clienteId?: string;
+  descricao?: string;
+}
+
+/* --------------------------------------------------------------------------
+ * Financeiro — resumo de caixa + transacoes (aba "Financeiro" da Lovable).
+ * ---------------------------------------------------------------------- */
+
+export type TransactionType = "entrada" | "saida";
+export type TransactionStatus = "pago" | "pendente";
+
+export interface Transaction {
+  id: string;
+  descricao: string;
+  /** cliente/fornecedor associado */
+  parte: string;
+  /** valor sempre positivo em BRL; o sinal vem de `tipo` */
+  valor: number;
+  tipo: TransactionType;
+  /** ISO date */
+  data: string;
+  status: TransactionStatus;
+}
+
+export interface FinanceSummary {
+  caixaAtual: number;
+  aReceber: number;
+  receitaMes: number;
+  /** 0..1 */
+  taxaInadimplencia: number;
+}

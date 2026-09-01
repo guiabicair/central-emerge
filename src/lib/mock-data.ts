@@ -1,4 +1,11 @@
-import type { Lead, TeamMember } from "@/lib/types";
+import type {
+  Client,
+  FinanceSummary,
+  Lead,
+  Task,
+  TeamMember,
+  Transaction,
+} from "@/lib/types";
 
 /**
  * Dados mockados da Fase 1. Sem Supabase ainda — quando o MCP do banco
@@ -282,5 +289,300 @@ export const LEADS: Lead[] = [
     valor: 6900,
     responsavelId: "u-bruno",
     atualizadoEm: d(3),
+  },
+];
+
+/* ==========================================================================
+ * CLIENTES — negocios fechados. Os 2 primeiros sao os leads com
+ * stage "fechado" promovidos a cliente; o resto e base historica mockada.
+ * ======================================================================== */
+
+export const CLIENTS: Client[] = [
+  {
+    id: "c-01",
+    nome: "Sônia Martins",
+    empresa: "Martins Imóveis",
+    segmento: "Imobiliário",
+    valorContrato: 27500,
+    responsavelId: "u-bruno",
+    status: "ativo",
+    fechadoEm: d(5),
+    origemLeadId: "l-13",
+  },
+  {
+    id: "c-02",
+    nome: "André Carvalho",
+    empresa: "Carvalho Marmoraria",
+    segmento: "Construção",
+    valorContrato: 13400,
+    responsavelId: "u-diego",
+    status: "ativo",
+    fechadoEm: d(8),
+    origemLeadId: "l-14",
+  },
+  {
+    id: "c-03",
+    nome: "Renata Alves",
+    empresa: "Alves & Filhos Distribuidora",
+    segmento: "Distribuição",
+    valorContrato: 42000,
+    responsavelId: "u-ana",
+    status: "ativo",
+    fechadoEm: d(34),
+  },
+  {
+    id: "c-04",
+    nome: "Paulo Siqueira",
+    empresa: "Siqueira Clínica Odontológica",
+    segmento: "Saúde",
+    valorContrato: 9800,
+    responsavelId: "u-carol",
+    status: "ativo",
+    fechadoEm: d(61),
+  },
+  {
+    id: "c-05",
+    nome: "Fernanda Dantas",
+    empresa: "Dantas Turismo",
+    segmento: "Turismo",
+    valorContrato: 15600,
+    responsavelId: "u-ana",
+    status: "pausado",
+    fechadoEm: d(96),
+  },
+  {
+    id: "c-06",
+    nome: "Ricardo Moura",
+    empresa: "Moura Logística",
+    segmento: "Logística",
+    valorContrato: 33500,
+    responsavelId: "u-bruno",
+    status: "ativo",
+    fechadoEm: d(128),
+  },
+  {
+    id: "c-07",
+    nome: "Cláudia Neves",
+    empresa: "Neves Papelaria",
+    segmento: "Varejo",
+    valorContrato: 6200,
+    responsavelId: "u-diego",
+    status: "encerrado",
+    fechadoEm: d(210),
+  },
+];
+
+export const CLIENTS_BY_ID: Record<string, Client> = Object.fromEntries(
+  CLIENTS.map((c) => [c.id, c]),
+);
+
+/* ==========================================================================
+ * TAREFAS — lista de tasks da equipe. `d(-n)` = n dias no futuro.
+ * ======================================================================== */
+
+export const TASKS: Task[] = [
+  {
+    id: "t-01",
+    titulo: "Enviar proposta revisada para Ateliê Souza",
+    responsavelId: "u-diego",
+    status: "em-andamento",
+    prazo: d(-1),
+    prioridade: "alta",
+  },
+  {
+    id: "t-02",
+    titulo: "Follow-up com Beatriz Lopes sobre desconto",
+    responsavelId: "u-carol",
+    status: "pendente",
+    prazo: d(-2),
+    prioridade: "media",
+  },
+  {
+    id: "t-03",
+    titulo: "Ligar para Rafael Menezes (lead indicado)",
+    responsavelId: "u-bruno",
+    status: "atrasada",
+    prazo: d(2),
+    prioridade: "alta",
+  },
+  {
+    id: "t-04",
+    titulo: "Onboarding do contrato Martins Imóveis",
+    responsavelId: "u-bruno",
+    status: "em-andamento",
+    prazo: d(-3),
+    prioridade: "urgente",
+    clienteId: "c-01",
+  },
+  {
+    id: "t-05",
+    titulo: "Fechar escopo da 2ª fase — Andrade Engenharia",
+    responsavelId: "u-bruno",
+    status: "pendente",
+    prazo: d(-6),
+    prioridade: "media",
+  },
+  {
+    id: "t-06",
+    titulo: "Preparar apresentação para reunião Ferreira Odontologia",
+    responsavelId: "u-carol",
+    status: "pendente",
+    prazo: d(-1),
+    prioridade: "alta",
+  },
+  {
+    id: "t-07",
+    titulo: "Revisar cobrança Asaas do mês",
+    responsavelId: "u-ana",
+    status: "concluida",
+    prazo: d(3),
+    prioridade: "media",
+  },
+  {
+    id: "t-08",
+    titulo: "Atualizar catálogo de serviços no site",
+    responsavelId: "u-diego",
+    status: "pendente",
+    prazo: d(-10),
+    prioridade: "baixa",
+  },
+  {
+    id: "t-09",
+    titulo: "Renovação de contrato — Dantas Turismo (pausado)",
+    responsavelId: "u-ana",
+    status: "atrasada",
+    prazo: d(4),
+    prioridade: "alta",
+    clienteId: "c-05",
+  },
+  {
+    id: "t-10",
+    titulo: "Compilar métricas de prospecção da semana",
+    responsavelId: "u-carol",
+    status: "concluida",
+    prazo: d(1),
+    prioridade: "baixa",
+  },
+  {
+    id: "t-11",
+    titulo: "Enviar contrato para assinatura — Moura Logística",
+    responsavelId: "u-bruno",
+    status: "concluida",
+    prazo: d(9),
+    prioridade: "media",
+    clienteId: "c-06",
+  },
+  {
+    id: "t-12",
+    titulo: "Agendar call de kickoff com Alves & Filhos",
+    responsavelId: "u-ana",
+    status: "em-andamento",
+    prazo: d(-2),
+    prioridade: "media",
+    clienteId: "c-03",
+  },
+];
+
+/* ==========================================================================
+ * FINANCEIRO — resumo + transacoes recentes (numeros mockados plausiveis).
+ * ======================================================================== */
+
+export const FINANCE_SUMMARY: FinanceSummary = {
+  caixaAtual: 184300,
+  aReceber: 96700,
+  receitaMes: 71250,
+  taxaInadimplencia: 0.086,
+};
+
+export const TRANSACTIONS: Transaction[] = [
+  {
+    id: "tx-01",
+    descricao: "Mensalidade — contrato Martins Imóveis",
+    parte: "Martins Imóveis",
+    valor: 27500,
+    tipo: "entrada",
+    data: d(1),
+    status: "pago",
+  },
+  {
+    id: "tx-02",
+    descricao: "Entrada — proposta fechada Carvalho Marmoraria",
+    parte: "Carvalho Marmoraria",
+    valor: 13400,
+    tipo: "entrada",
+    data: d(3),
+    status: "pago",
+  },
+  {
+    id: "tx-03",
+    descricao: "Assinatura de ferramentas (Google Workspace)",
+    parte: "Google",
+    valor: 890,
+    tipo: "saida",
+    data: d(4),
+    status: "pago",
+  },
+  {
+    id: "tx-04",
+    descricao: "Mensalidade — Alves & Filhos Distribuidora",
+    parte: "Alves & Filhos Distribuidora",
+    valor: 42000,
+    tipo: "entrada",
+    data: d(6),
+    status: "pendente",
+  },
+  {
+    id: "tx-05",
+    descricao: "Anúncios — captação de leads (Meta Ads)",
+    parte: "Meta",
+    valor: 3200,
+    tipo: "saida",
+    data: d(7),
+    status: "pago",
+  },
+  {
+    id: "tx-06",
+    descricao: "Mensalidade — Siqueira Clínica Odontológica",
+    parte: "Siqueira Clínica Odontológica",
+    valor: 9800,
+    tipo: "entrada",
+    data: d(9),
+    status: "pago",
+  },
+  {
+    id: "tx-07",
+    descricao: "Mensalidade — Moura Logística",
+    parte: "Moura Logística",
+    valor: 33500,
+    tipo: "entrada",
+    data: d(11),
+    status: "pendente",
+  },
+  {
+    id: "tx-08",
+    descricao: "Hospedagem e domínio (Vercel + registro)",
+    parte: "Vercel",
+    valor: 640,
+    tipo: "saida",
+    data: d(12),
+    status: "pago",
+  },
+  {
+    id: "tx-09",
+    descricao: "Mensalidade — Dantas Turismo",
+    parte: "Dantas Turismo",
+    valor: 15600,
+    tipo: "entrada",
+    data: d(14),
+    status: "pendente",
+  },
+  {
+    id: "tx-10",
+    descricao: "Pró-labore e salários",
+    parte: "Equipe Emerge",
+    valor: 38000,
+    tipo: "saida",
+    data: d(15),
+    status: "pago",
   },
 ];

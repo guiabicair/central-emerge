@@ -28,6 +28,16 @@ export function initials(nome: string) {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
 }
 
+const DATE_FMT = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+})
+
+export function formatDate(iso: string) {
+  return DATE_FMT.format(new Date(iso))
+}
+
 export function relativeDate(iso: string) {
   const then = new Date(iso).getTime()
   const days = Math.round((Date.now() - then) / 86_400_000)
@@ -36,4 +46,14 @@ export function relativeDate(iso: string) {
   if (days < 7) return `${days}d atrás`
   if (days < 30) return `${Math.round(days / 7)}sem atrás`
   return `${Math.round(days / 30)}m atrás`
+}
+
+/** Rotulo de prazo relativo (aceita datas futuras), para tarefas. */
+export function dueLabel(iso: string) {
+  const days = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000)
+  if (days === 0) return "vence hoje"
+  if (days === 1) return "vence amanhã"
+  if (days > 1) return `em ${days}d`
+  if (days === -1) return "1d de atraso"
+  return `${Math.abs(days)}d de atraso`
 }
