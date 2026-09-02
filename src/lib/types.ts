@@ -163,6 +163,8 @@ export interface Task {
   responsavelId: string;
   /** cliente vinculado (diferente do responsavel); ausente = "Sem cliente" */
   clienteId?: string;
+  /** projeto ao qual a task pertence (cliente ou interno) */
+  projetoId?: string;
   /** coluna atual no Kanban de producao */
   status: TaskColumnId;
   /** ISO date do prazo */
@@ -184,6 +186,29 @@ export interface Task {
   registrosTempo: TaskTimeEntry[];
   /** vinculo opcional com uma metrica/meta da equipe */
   meta?: TaskGoalLink;
+}
+
+/* --------------------------------------------------------------------------
+ * Projetos — agrupam tasks. Podem vir de um cliente fechado (tipo
+ * "cliente") ou ser iniciativas internas da agencia (tipo "interno").
+ * ---------------------------------------------------------------------- */
+
+export type ProjectType = "cliente" | "interno";
+export type ProjectStatus = "ativo" | "pausado" | "concluido";
+
+export interface Project {
+  id: string;
+  nome: string;
+  tipo: ProjectType;
+  /** so quando tipo === "cliente" */
+  clienteId?: string;
+  descricao: string;
+  status: ProjectStatus;
+  /** dono / lead do projeto (membro do TEAM) */
+  responsavelId: string;
+  /** ISO date */
+  dataInicio: string;
+  dataFimPrevista?: string;
 }
 
 /* --------------------------------------------------------------------------

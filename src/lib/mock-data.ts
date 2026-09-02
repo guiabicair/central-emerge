@@ -3,6 +3,7 @@ import type {
   DependencyResponsavel,
   FinanceSummary,
   Lead,
+  Project,
   Proposal,
   Task,
   TaskDependency,
@@ -404,7 +405,29 @@ export const CLIENTS_BY_ID: Record<string, Client> = Object.fromEntries(
 /** usuario logado simulado (para o filtro "Minhas") */
 export const CURRENT_USER_ID = "u-ana";
 
-export const TASKS: Task[] = [
+/** vinculo task -> projeto (aplicado no .map ao final do array) */
+const TASK_TO_PROJECT: Record<string, string> = {
+  "t-01": "pr-01",
+  "t-02": "pr-01",
+  "t-03": "pr-01",
+  "t-04": "pr-01",
+  "t-05": "pr-01",
+  "t-06": "pr-01",
+  "t-07": "pr-02",
+  "t-08": "pr-02",
+  "t-09": "pr-02",
+  "t-10": "pr-03",
+  "t-11": "pr-03",
+  "t-12": "pr-03",
+  "t-13": "pr-06",
+  "t-14": "pr-07",
+  "t-15": "pr-04",
+  "t-16": "pr-05",
+  "t-17": "pr-02",
+  "t-18": "pr-07",
+};
+
+export const TASKS: Task[] = ([
   {
     id: "t-01",
     titulo: "Briefing da campanha de vídeo — Alves & Filhos",
@@ -900,7 +923,112 @@ export const TASKS: Task[] = [
       unidade: "ligações",
     },
   },
+] satisfies Task[]).map((t) => ({
+  ...t,
+  projetoId: TASK_TO_PROJECT[t.id],
+}));
+
+/* ==========================================================================
+ * PROJETOS — agrupam as tasks. Metade vem de clientes fechados, metade
+ * sao iniciativas internas da agencia. Ver TASK_TO_PROJECT acima.
+ * ======================================================================== */
+
+export const PROJECTS: Project[] = [
+  {
+    id: "pr-01",
+    nome: "Campanha de vídeo institucional — Alves & Filhos",
+    tipo: "cliente",
+    clienteId: "c-03",
+    descricao:
+      "Produção do vídeo institucional de 90s: briefing, roteiro, captação, trilha, edição e aprovação do cliente.",
+    status: "ativo",
+    responsavelId: "u-ana",
+    dataInicio: d(45),
+    dataFimPrevista: d(-10),
+  },
+  {
+    id: "pr-02",
+    nome: "Social media — Dantas Turismo",
+    tipo: "cliente",
+    clienteId: "c-05",
+    descricao:
+      "Identidade do feed, kit de templates, calendário editorial e renovação do contrato pausado.",
+    status: "ativo",
+    responsavelId: "u-carol",
+    dataInicio: d(30),
+    dataFimPrevista: d(-20),
+  },
+  {
+    id: "pr-03",
+    nome: "Novo site institucional — Moura Logística",
+    tipo: "cliente",
+    clienteId: "c-06",
+    descricao:
+      "Levantamento de requisitos, wireframes das páginas internas e implementação do front-end com CMS leve.",
+    status: "ativo",
+    responsavelId: "u-bruno",
+    dataInicio: d(22),
+    dataFimPrevista: d(-35),
+  },
+  {
+    id: "pr-04",
+    nome: "Onboarding — Martins Imóveis",
+    tipo: "cliente",
+    clienteId: "c-01",
+    descricao:
+      "Rodar o checklist de onboarding do novo contrato: acessos, kickoff e primeiro planejamento mensal.",
+    status: "ativo",
+    responsavelId: "u-bruno",
+    dataInicio: d(6),
+    dataFimPrevista: d(-15),
+  },
+  {
+    id: "pr-05",
+    nome: "Reformulação do site institucional da Emerge",
+    tipo: "interno",
+    descricao:
+      "Revisão de conteúdo, catálogo de serviços e nova tabela de preços do próprio site da agência.",
+    status: "pausado",
+    responsavelId: "u-diego",
+    dataInicio: d(20),
+  },
+  {
+    id: "pr-06",
+    nome: "Automação financeira interna",
+    tipo: "interno",
+    descricao:
+      "Conciliação das cobranças do Asaas com os contratos ativos e alertas de inadimplência.",
+    status: "ativo",
+    responsavelId: "u-ana",
+    dataInicio: d(14),
+    dataFimPrevista: d(-7),
+  },
+  {
+    id: "pr-07",
+    nome: "Prospecção & métricas Q3",
+    tipo: "interno",
+    descricao:
+      "Rotina semanal de prospecção por indicação e consolidação das métricas do funil para a reunião de segunda.",
+    status: "ativo",
+    responsavelId: "u-carol",
+    dataInicio: d(28),
+    dataFimPrevista: d(-40),
+  },
+  {
+    id: "pr-08",
+    nome: "Treinamento de onboarding Q3",
+    tipo: "interno",
+    descricao:
+      "Material e trilha de treinamento para padronizar o onboarding de novos clientes e novos membros do time.",
+    status: "pausado",
+    responsavelId: "u-bruno",
+    dataInicio: d(12),
+  },
 ];
+
+export const PROJECTS_BY_ID: Record<string, Project> = Object.fromEntries(
+  PROJECTS.map((p) => [p.id, p]),
+);
 
 /* ==========================================================================
  * FINANCEIRO — resumo + transacoes recentes (numeros mockados plausiveis).

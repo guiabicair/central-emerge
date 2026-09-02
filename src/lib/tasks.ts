@@ -252,6 +252,7 @@ export interface TaskFilters {
   atrasadas: boolean;
   hoje: boolean;
   responsaveis: string[];
+  projetos: string[];
 }
 
 export const EMPTY_FILTERS: TaskFilters = {
@@ -260,6 +261,7 @@ export const EMPTY_FILTERS: TaskFilters = {
   atrasadas: false,
   hoje: false,
   responsaveis: [],
+  projetos: [],
 };
 
 export function filterTasks(
@@ -281,6 +283,12 @@ export function filterTasks(
     ) {
       return false;
     }
+    if (
+      filters.projetos.length > 0 &&
+      (!t.projetoId || !filters.projetos.includes(t.projetoId))
+    ) {
+      return false;
+    }
     return true;
   });
 }
@@ -291,6 +299,7 @@ export function countFilters(f: TaskFilters): number {
     (f.minhas ? 1 : 0) +
     (f.atrasadas ? 1 : 0) +
     (f.hoje ? 1 : 0) +
-    (f.responsaveis.length > 0 ? 1 : 0)
+    (f.responsaveis.length > 0 ? 1 : 0) +
+    (f.projetos.length > 0 ? 1 : 0)
   );
 }

@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TEAM } from "@/lib/mock-data";
+import { PROJECTS, TEAM } from "@/lib/mock-data";
 import type { TaskFilters } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +58,13 @@ export function TaskFiltersBar({
       ? filters.responsaveis.filter((r) => r !== id)
       : [...filters.responsaveis, id];
     onChange({ responsaveis: next });
+  };
+
+  const toggleProjeto = (id: string) => {
+    const next = filters.projetos.includes(id)
+      ? filters.projetos.filter((p) => p !== id)
+      : [...filters.projetos, id];
+    onChange({ projetos: next });
   };
 
   return (
@@ -118,6 +125,35 @@ export function TaskFiltersBar({
               onCheckedChange={() => toggleResponsavel(member.id)}
             >
               {member.nome}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="outline" size="sm" className="h-8">
+              Projeto
+              {filters.projetos.length > 0 && (
+                <span className="bg-brand/15 text-brand ml-1 rounded-full px-1 text-[10px]">
+                  {filters.projetos.length}
+                </span>
+              )}
+              <ChevronDown className="size-3.5" />
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start" className="w-64">
+          <DropdownMenuLabel>Filtrar por projeto</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {PROJECTS.map((project) => (
+            <DropdownMenuCheckboxItem
+              key={project.id}
+              checked={filters.projetos.includes(project.id)}
+              onCheckedChange={() => toggleProjeto(project.id)}
+            >
+              {project.nome}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>
