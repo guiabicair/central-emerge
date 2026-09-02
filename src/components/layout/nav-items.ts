@@ -19,7 +19,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { href: "/pipeline", label: "Pipeline", icon: Workflow, ready: true },
   { href: "/propostas", label: "Propostas", icon: FileText },
   { href: "/financeiro", label: "Financeiro", icon: Wallet, ready: true },
