@@ -16,23 +16,64 @@ function GoogleGlyph() {
 }
 
 export function LoginForm({ next, error }: { next: string; error?: string }) {
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState<null | "password" | "magic" | "google">(
+    null,
+  );
+  const [msg, setMsg] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  async function signIn() {
-    setLoading(true);
+  const callbackUrl = (path: string) =>
+    `${window.location.origin}/auth/callback?next=${encodeURIComponent(path)}`;
+
+  async function signInPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setLocalError(null);
+    setMsg(null);
+
+    const supabase = createClient();
+
+    if (!password) {
+      // sem senha -> manda magic link
+      setLoading("magic");
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: callbackUrl(next) },
+      });
+      setLoading(null);
+      if (otpError) setLocalError(otpError.message);
+      else setMsg(`Link de acesso enviado para ${email}. Confira o e-mail.`);
+      return;
+    }
+
+    setLoading("password");
+    const { error: pwError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(null);
+    if (pwError) {
+      setLocalError(pwError.message);
+      return;
+    }
+    window.location.assign(next);
+  }
+
+  async function signInGoogle() {
+    setLoading("google");
     setLocalError(null);
     const supabase = createClient();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        redirectTo: callbackUrl(next),
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
     if (oauthError) {
       setLocalError(oauthError.message);
-      setLoading(false);
+      setLoading(null);
     }
   }
 
@@ -40,23 +81,70 @@ export function LoginForm({ next, error }: { next: string; error?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <form onSubmit={signInPassword} className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-muted-foreground text-xs font-medium">E-mail</span>
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="voce@emerge.com"
+            className="border-input bg-background focus:ring-ring h-10 rounded-lg border px-3 text-sm outline-none focus:ring-2"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-muted-foreground text-xs font-medium">
+            Senha{" "}
+            <span className="text-muted-foreground/70">
+              (deixe vazio p/ receber link por e-mail)
+            </span>
+          </span>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="border-input bg-background focus:ring-ring h-10 rounded-lg border px-3 text-sm outline-none focus:ring-2"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={loading !== null}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-1 flex h-10 items-center justify-center rounded-lg text-sm font-semibold transition-colors disabled:opacity-60"
+        >
+          {loading === "password"
+            ? "Entrando…"
+            : loading === "magic"
+              ? "Enviando link…"
+              : "Entrar"}
+        </button>
+      </form>
+
+      <div className="flex items-center gap-3">
+        <span className="bg-border h-px flex-1" />
+        <span className="text-muted-foreground text-[11px]">ou</span>
+        <span className="bg-border h-px flex-1" />
+      </div>
+
       <button
         type="button"
-        onClick={signIn}
-        disabled={loading}
-        className="border-input bg-card hover:bg-accent flex h-11 items-center justify-center gap-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-60"
+        onClick={signInGoogle}
+        disabled={loading !== null}
+        className="border-input bg-card hover:bg-accent flex h-10 items-center justify-center gap-3 rounded-lg border text-sm font-medium transition-colors disabled:opacity-60"
       >
         <GoogleGlyph />
-        {loading ? "Redirecionando…" : "Entrar com Google"}
+        {loading === "google" ? "Redirecionando…" : "Entrar com Google"}
       </button>
 
+      {msg && <p className="text-brand text-center text-xs">{msg}</p>}
       {shownError && (
         <p className="text-destructive text-center text-xs">{shownError}</p>
       )}
 
       <p className="text-muted-foreground text-center text-[11px] leading-relaxed">
-        Acesso restrito à equipe Emerge. Sua conta precisa estar aprovada no
-        sistema.
+        Acesso restrito à equipe Emerge.
       </p>
     </div>
   );

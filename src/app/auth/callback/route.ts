@@ -1,32 +1,46 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import type { EmailOtpType } from "@supabase/supabase-js";
+
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Retorno do OAuth (PKCE): troca o `code` por sessao e redireciona.
- * Google -> /auth/callback?code=...&next=/rota
+ * Retorno de OAuth (PKCE: ?code=...) e de magic link / OTP por e-mail
+ * (?token_hash=...&type=...). Troca por sessao e redireciona.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
-  const error = searchParams.get("error_description") ?? searchParams.get("error");
+  const rawNext = searchParams.get("next") ?? "/";
+  const next = rawNext.startsWith("/") ? rawNext : "/";
 
-  if (error) {
+  const err = searchParams.get("error_description") ?? searchParams.get("error");
+  if (err) {
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(error)}`,
+      `${origin}/login?error=${encodeURIComponent(err)}`,
     );
   }
 
+  const supabase = await createClient();
+
+  const code = searchParams.get("code");
   if (code) {
-    const supabase = await createClient();
-    const { error: exchangeError } =
-      await supabase.auth.exchangeCodeForSession(code);
-    if (!exchangeError) {
-      return NextResponse.redirect(`${origin}${next.startsWith("/") ? next : "/"}`);
-    }
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(exchangeError.message)}`,
+      `${origin}/login?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  const tokenHash = searchParams.get("token_hash");
+  const type = searchParams.get("type") as EmailOtpType | null;
+  if (tokenHash && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash: tokenHash,
+    });
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(error.message)}`,
     );
   }
 
