@@ -1,4 +1,5 @@
 import {
+  BookLock,
   CalendarDays,
   FileText,
   LayoutDashboard,
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/clientes", label: "Clientes", icon: Users, ready: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays, ready: true },
   { href: "/equipe/pessoas", label: "Equipe", icon: Shield, ready: true },
+  { href: "/recursos/acessos", label: "Recursos", icon: BookLock, ready: true },
   {
     href: "/configuracoes",
     label: "Configurações",

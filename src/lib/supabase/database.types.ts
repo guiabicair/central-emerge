@@ -356,6 +356,125 @@ export type Database = {
           },
         ]
       }
+      app_permissions: {
+        Row: {
+          area: string
+          description: string | null
+          key: string
+          label: string
+          position: number
+        }
+        Insert: {
+          area: string
+          description?: string | null
+          key: string
+          label: string
+          position?: number
+        }
+        Update: {
+          area?: string
+          description?: string | null
+          key?: string
+          label?: string
+          position?: number
+        }
+        Relationships: []
+      }
+      app_role_permissions: {
+        Row: {
+          permission_key: string
+          role_id: string
+        }
+        Insert: {
+          permission_key: string
+          role_id: string
+        }
+        Update: {
+          permission_key?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_role_permissions_permission_key_fkey"
+            columns: ["permission_key"]
+            isOneToOne: false
+            referencedRelation: "app_permissions"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "app_role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_roles: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          position: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          position?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          position?: number
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      app_user_roles: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          role_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          role_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          role_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budgets: {
         Row: {
           client_id: string | null
@@ -2238,6 +2357,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_has_permission: {
+        Args: { perm: string; uid: string }
+        Returns: boolean
+      }
+      app_is_admin: { Args: { uid: string }; Returns: boolean }
+      app_team_members: {
+        Args: never
+        Returns: {
+          approval_status: string
+          avatar_url: string
+          created_at: string
+          email: string
+          full_name: string
+          mood: string
+          requested_role: string
+          roles: string[]
+          user_id: string
+        }[]
+      }
       approve_user: {
         Args: { approved_by_id: string; user_profile_id: string }
         Returns: boolean

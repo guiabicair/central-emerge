@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createUntypedClient } from "@/lib/supabase/server";
+import { createClient, createUntypedClient } from "@/lib/supabase/server";
 import { can } from "@/lib/auth/roles";
 
 async function guard(permission: string) {
@@ -135,4 +135,84 @@ export async function setRolePermission(
     if (error) throw new Error(error.message);
   }
   revalidatePath("/equipe/papeis");
+}
+
+/* ---------------- Acessos de plataforma ---------------- */
+
+export interface PlatformAccessInput {
+  id?: string;
+  platform_name: string;
+  category: string;
+  login_url?: string;
+  username?: string;
+  password?: string;
+  description?: string;
+  additional_info?: string;
+  is_active?: boolean;
+}
+
+export async function savePlatformAccess(input: PlatformAccessInput) {
+  await guard("recursos.manage");
+  const supabase = await createClient();
+  const row = {
+    platform_name: input.platform_name.trim(),
+    category: input.category,
+    login_url: input.login_url?.trim() || null,
+    username: input.username?.trim() || null,
+    password: input.password?.trim() || null,
+    description: input.description?.trim() || null,
+    additional_info: input.additional_info?.trim() || null,
+    is_active: input.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = input.id
+    ? await supabase.from("platform_access").update(row).eq("id", input.id)
+    : await supabase.from("platform_access").insert(row);
+  if (error) throw new Error(error.message);
+  revalidatePath("/equipe/acessos");
+}
+
+export async function deletePlatformAccess(id: string) {
+  await guard("recursos.manage");
+  const supabase = await createClient();
+  const { error } = await supabase.from("platform_access").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/equipe/acessos");
+}
+
+/* ---------------- Cursos ---------------- */
+
+export interface CourseInput {
+  id?: string;
+  title: string;
+  description?: string;
+  link?: string;
+  email?: string;
+  password?: string;
+}
+
+export async function saveCourse(input: CourseInput) {
+  await guard("recursos.manage");
+  const supabase = await createClient();
+  const row = {
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    link: input.link?.trim() || null,
+    email: input.email?.trim() || null,
+    password: input.password?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = input.id
+    ? await supabase.from("courses").update(row).eq("id", input.id)
+    : await supabase.from("courses").insert(row);
+  if (error) throw new Error(error.message);
+  revalidatePath("/equipe/cursos");
+}
+
+export async function deleteCourse(id: string) {
+  await guard("recursos.manage");
+  const supabase = await createClient();
+  const { error } = await supabase.from("courses").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/equipe/cursos");
 }
