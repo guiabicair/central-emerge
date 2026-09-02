@@ -10,7 +10,10 @@ export async function proxy(request: NextRequest) {
   const { response, user } = await updateSession(request);
 
   const { pathname } = request.nextUrl;
-  const isPublic = pathname === "/login" || pathname.startsWith("/auth");
+  const isPublic =
+    pathname === "/login" ||
+    pathname === "/privacidade" ||
+    pathname.startsWith("/auth");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
