@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Settings,
+  Shield,
   Users,
   Wallet,
   Workflow,
@@ -26,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tarefas", label: "Tarefas", icon: ListChecks, ready: true },
   { href: "/clientes", label: "Clientes", icon: Users, ready: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays, ready: true },
+  { href: "/equipe/pessoas", label: "Equipe", icon: Shield, ready: true },
   {
     href: "/configuracoes",
     label: "Configurações",
