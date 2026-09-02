@@ -33,6 +33,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground min-h-full">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('central-emerge-theme');var d=document.documentElement.classList;if(t==='light')d.remove('dark');else if(t==='dark')d.add('dark');}catch(e){}`,
+          }}
+        />
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster theme="dark" position="bottom-right" richColors />
       </body>

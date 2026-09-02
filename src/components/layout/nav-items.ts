@@ -14,7 +14,7 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Fase 1: so o Pipeline tem conteudo real */
+  /** false/ausente mostra o selo "em breve" no item */
   ready?: boolean;
 }
 
@@ -26,5 +26,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tarefas", label: "Tarefas", icon: ListChecks, ready: true },
   { href: "/clientes", label: "Clientes", icon: Users, ready: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays, ready: true },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+  {
+    href: "/configuracoes",
+    label: "Configurações",
+    icon: Settings,
+    ready: true,
+  },
 ];
