@@ -213,3 +213,42 @@ export interface FinanceSummary {
   /** 0..1 */
   taxaInadimplencia: number;
 }
+
+/* --------------------------------------------------------------------------
+ * Propostas — espelha o gerador real (emerge-propostas.vercel.app).
+ * A API real (/api/admin/propostas, /api/admin/proposta?slug=X,
+ * /api/admin/stats) e protegida por senha de admin que nao temos aqui —
+ * entao a Fase atual usa mock com a MESMA forma dos dados reais, pronto
+ * para plugar a API quando a credencial existir.
+ * ---------------------------------------------------------------------- */
+
+export type ProposalStatus =
+  | "rascunho"
+  | "enviada"
+  | "visualizada"
+  | "aceita"
+  | "recusada"
+  | "expirada";
+
+export interface Proposal {
+  id: string;
+  /** usado na URL publica: emerge-propostas.vercel.app/{slug} */
+  slug: string;
+  titulo: string;
+  empresa: string;
+  /** vinculo opcional com um cliente ja fechado */
+  clienteId?: string;
+  /** vinculo opcional com um lead do pipeline */
+  leadId?: string;
+  valor: number;
+  status: ProposalStatus;
+  /** ISO date */
+  criadaEm: string;
+  enviadaEm?: string;
+  respondidaEm?: string;
+  validoAte?: string;
+  /** link real da pagina publica do gerador */
+  linkPublico: string;
+  /** cobranca no Asaas, gerada quando a proposta e aceita */
+  linkPagamentoAsaas?: string;
+}
