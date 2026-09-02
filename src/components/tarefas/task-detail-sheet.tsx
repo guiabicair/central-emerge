@@ -38,10 +38,11 @@ import { CLIENTS_BY_ID, TEAM, TEAM_BY_ID } from "@/lib/mock-data";
 import {
   PRIORITY_META,
   nextColumn,
+  resolveDependencyResponsavel,
   subtaskProgress,
   totalHoras,
 } from "@/lib/tasks";
-import type { Task, TaskColumn } from "@/lib/types";
+import type { Task, TaskColumn, TaskDependency } from "@/lib/types";
 import { cn, formatDate, relativeDate } from "@/lib/utils";
 
 interface Props {
@@ -116,9 +117,14 @@ export function TaskDetailSheet(props: Props) {
   const registrado = totalHoras(task);
   const estimado = task.horasEstimadas ?? 0;
   const bloqueadaPor = task.dependsOn
-    .map((id) => allTasks.find((t) => t.id === id))
-    .filter((t): t is Task => Boolean(t));
-  const bloqueia = allTasks.filter((t) => t.dependsOn.includes(task.id));
+    .map((dep) => ({
+      dep,
+      alvo: allTasks.find((t) => t.id === dep.taskId),
+    }))
+    .filter((x): x is { dep: TaskDependency; alvo: Task } => Boolean(x.alvo));
+  const bloqueia = allTasks
+    .map((t) => ({ alvo: t, dep: t.dependsOn.find((d) => d.taskId === task.id) }))
+    .filter((x): x is { alvo: Task; dep: TaskDependency } => Boolean(x.dep));
 
   const saveTitulo = () => {
     const v = tituloDraft.trim();
@@ -245,43 +251,55 @@ export function TaskDetailSheet(props: Props) {
                   Sem dependências.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {bloqueadaPor.length > 0 && (
-                    <div>
-                      <p className="text-muted-foreground mb-1 text-[11px]">
+                    <div className="space-y-1.5">
+                      <p className="text-muted-foreground text-[11px]">
                         Bloqueada por
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {bloqueadaPor.map((t) => (
+                      {bloqueadaPor.map(({ dep, alvo }) => (
+                        <div
+                          key={alvo.id}
+                          className="border-border rounded-lg border p-2"
+                        >
                           <button
-                            key={t.id}
                             type="button"
-                            onClick={() => props.onNavigateTask(t.id)}
-                            className="border-border hover:border-brand/40 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px]"
+                            onClick={() => props.onNavigateTask(alvo.id)}
+                            className="hover:text-brand block max-w-full truncate text-left text-xs font-medium"
                           >
-                            {t.titulo}
+                            {alvo.titulo}
                           </button>
-                        ))}
-                      </div>
+                          <p className="text-muted-foreground mt-0.5 text-[10px]">
+                            Motivo: {dep.motivo} · Responsável:{" "}
+                            {resolveDependencyResponsavel(dep.responsavel)}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   )}
                   {bloqueia.length > 0 && (
-                    <div>
-                      <p className="text-muted-foreground mb-1 text-[11px]">
+                    <div className="space-y-1.5">
+                      <p className="text-muted-foreground text-[11px]">
                         Bloqueia
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {bloqueia.map((t) => (
+                      {bloqueia.map(({ dep, alvo }) => (
+                        <div
+                          key={alvo.id}
+                          className="border-border rounded-lg border p-2"
+                        >
                           <button
-                            key={t.id}
                             type="button"
-                            onClick={() => props.onNavigateTask(t.id)}
-                            className="border-border hover:border-brand/40 max-w-[220px] truncate rounded-full border px-2 py-0.5 text-[11px]"
+                            onClick={() => props.onNavigateTask(alvo.id)}
+                            className="hover:text-brand block max-w-full truncate text-left text-xs font-medium"
                           >
-                            {t.titulo}
+                            {alvo.titulo}
                           </button>
-                        ))}
-                      </div>
+                          <p className="text-muted-foreground mt-0.5 text-[10px]">
+                            Motivo: {dep.motivo} · Responsável:{" "}
+                            {resolveDependencyResponsavel(dep.responsavel)}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

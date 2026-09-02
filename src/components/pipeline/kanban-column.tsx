@@ -8,9 +8,11 @@ import { formatCompactCurrency } from "@/lib/utils";
 export function KanbanColumn({
   stage,
   leads,
+  onOpenLead,
 }: {
   stage: PipelineStage;
   leads: Lead[];
+  onOpenLead: (id: string) => void;
 }) {
   const total = leads.reduce((sum, l) => sum + l.valor, 0);
 
@@ -34,7 +36,7 @@ export function KanbanColumn({
 
       <div className="bg-muted/30 flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2">
         {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} />
+          <LeadCard key={lead.id} lead={lead} onOpen={onOpenLead} />
         ))}
         <button
           type="button"

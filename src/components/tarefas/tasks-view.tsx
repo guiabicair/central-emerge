@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { KanbanSquare, Workflow } from "lucide-react";
+import { toast } from "sonner";
 
 import { TaskDetailSheet } from "@/components/tarefas/task-detail-sheet";
 import { TaskFiltersBar } from "@/components/tarefas/task-filters-bar";
@@ -16,11 +17,12 @@ import {
   assertAcyclic,
   countFilters,
   filterTasks,
+  hasCycleWith,
   isAtrasada,
   nextColumn,
   type TaskFilters,
 } from "@/lib/tasks";
-import type { Task, TaskColumn } from "@/lib/types";
+import type { DependencyResponsavel, Task, TaskColumn } from "@/lib/types";
 
 const TaskGraph = dynamic(
   () => import("@/components/tarefas/task-graph").then((m) => m.TaskGraph),
@@ -129,6 +131,60 @@ export function TasksView() {
     setSelectedId((cur) => (cur === id ? null : cur));
   };
 
+  const handleAddDependency = useCallback(
+    (
+      blockerId: string,
+      blockedId: string,
+      motivo: string,
+      responsavel: DependencyResponsavel,
+    ) => {
+      setTasks((prev) => {
+        const blocked = prev.find((t) => t.id === blockedId);
+        if (!blocked || blocked.dependsOn.some((d) => d.taskId === blockerId)) {
+          return prev;
+        }
+        if (hasCycleWith(prev, blockerId, blockedId)) {
+          toast.error("Isso criaria um ciclo de dependência", {
+            description: "A conexão foi rejeitada.",
+          });
+          return prev;
+        }
+        const blocker = prev.find((t) => t.id === blockerId);
+        toast.success("Dependência criada", {
+          description: `"${blocker?.titulo ?? blockerId}" agora bloqueia "${blocked.titulo}".`,
+        });
+        return prev.map((t) =>
+          t.id === blockedId
+            ? {
+                ...t,
+                dependsOn: [
+                  ...t.dependsOn,
+                  { taskId: blockerId, motivo, responsavel },
+                ],
+              }
+            : t,
+        );
+      });
+    },
+    [],
+  );
+
+  const handleRemoveDependency = useCallback(
+    (blockerId: string, blockedId: string) => {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === blockedId
+            ? {
+                ...t,
+                dependsOn: t.dependsOn.filter((d) => d.taskId !== blockerId),
+              }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
+
   const handleAddColumn = () => {
     setColumns((prev) => {
       const n = prev.filter((c) => c.custom).length + 1;
@@ -184,7 +240,12 @@ export function TasksView() {
             onAddColumn={handleAddColumn}
           />
         ) : (
-          <TaskGraph tasks={visibleTasks} onOpenTask={setSelectedId} />
+          <TaskGraph
+            tasks={visibleTasks}
+            onOpenTask={setSelectedId}
+            onAddDependency={handleAddDependency}
+            onRemoveDependency={handleRemoveDependency}
+          />
         )}
       </div>
 

@@ -1,7 +1,13 @@
 import dagre from "@dagrejs/dagre";
 
 import type { PillColor } from "@/components/status-pill";
-import type { Task, TaskColumn, TaskPriority } from "@/lib/types";
+import { CLIENTS_BY_ID, TEAM_BY_ID } from "@/lib/mock-data";
+import type {
+  DependencyResponsavel,
+  Task,
+  TaskColumn,
+  TaskPriority,
+} from "@/lib/types";
 
 /* -------------------------------------------------------------------------- */
 /* Colunas do fluxo de producao (defaults — o usuario pode adicionar mais)     */
@@ -106,8 +112,8 @@ export function buildDependencyEdges(tasks: Task[]): DepEdge[] {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const edges: DepEdge[] = [];
   for (const task of tasks) {
-    for (const blockerId of task.dependsOn) {
-      const blocker = byId.get(blockerId);
+    for (const dep of task.dependsOn) {
+      const blocker = byId.get(dep.taskId);
       if (!blocker) continue;
       const tone: DepEdge["tone"] = isAtrasada(blocker)
         ? "late"
@@ -115,14 +121,22 @@ export function buildDependencyEdges(tasks: Task[]): DepEdge[] {
           ? "done"
           : "open";
       edges.push({
-        id: `dep-${blockerId}-${task.id}`,
-        source: blockerId,
+        id: `dep-${dep.taskId}-${task.id}`,
+        source: dep.taskId,
         target: task.id,
         tone,
       });
     }
   }
   return edges;
+}
+
+/** Nome legivel do responsavel por uma dependencia (membro ou cliente). */
+export function resolveDependencyResponsavel(
+  r: DependencyResponsavel,
+): string {
+  if (r.tipo === "equipe") return TEAM_BY_ID[r.id]?.nome ?? "Equipe";
+  return CLIENTS_BY_ID[r.id]?.empresa ?? "Cliente";
 }
 
 /** ids de tasks que participam de pelo menos uma dependencia. */
@@ -190,7 +204,7 @@ export function assertAcyclic(tasks: Task[]): void {
     if (s === 2) return false;
     state.set(id, 1);
     for (const dep of byId.get(id)?.dependsOn ?? []) {
-      if (visit(dep)) return true;
+      if (visit(dep.taskId)) return true;
     }
     state.set(id, 2);
     return false;
@@ -201,6 +215,31 @@ export function assertAcyclic(tasks: Task[]): void {
       return;
     }
   }
+}
+
+/**
+ * Retorna true se adicionar a aresta blocker -> blocked (ou seja, colocar
+ * `blockerId` no dependsOn de `blockedId`) criaria um ciclo no grafo.
+ */
+export function hasCycleWith(
+  tasks: Task[],
+  blockerId: string,
+  blockedId: string,
+): boolean {
+  if (blockerId === blockedId) return true;
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  // segue as arestas dependsOn a partir da bloqueadora; se alcançar a
+  // bloqueada, fechar o novo vinculo formaria um ciclo.
+  const stack = [blockerId];
+  const seen = new Set<string>();
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (cur === blockedId) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    for (const dep of byId.get(cur)?.dependsOn ?? []) stack.push(dep.taskId);
+  }
+  return false;
 }
 
 /* -------------------------------------------------------------------------- */

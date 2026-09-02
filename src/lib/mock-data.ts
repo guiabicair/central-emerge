@@ -1,8 +1,10 @@
 import type {
   Client,
+  DependencyResponsavel,
   FinanceSummary,
   Lead,
   Task,
+  TaskDependency,
   TeamMember,
   Transaction,
 } from "@/lib/types";
@@ -27,6 +29,15 @@ export const TEAM_BY_ID: Record<string, TeamMember> = Object.fromEntries(
 /** dias atras -> ISO */
 const d = (dias: number) =>
   new Date(Date.now() - dias * 86_400_000).toISOString();
+
+/** helpers para montar dependencias de task com motivo + responsavel */
+const eq = (id: string): DependencyResponsavel => ({ tipo: "equipe", id });
+const cli = (id: string): DependencyResponsavel => ({ tipo: "cliente", id });
+const dep = (
+  taskId: string,
+  motivo: string,
+  responsavel: DependencyResponsavel,
+): TaskDependency => ({ taskId, motivo, responsavel });
 
 export const LEADS: Lead[] = [
   {
@@ -440,7 +451,13 @@ export const TASKS: Task[] = [
       { label: "Referência de tom (YouTube)", url: "https://youtube.com/watch?v=xyz" },
       { label: "Board no Figma", url: "https://figma.com/file/roteiro-alves" },
     ],
-    dependsOn: ["t-01"],
+    dependsOn: [
+      dep(
+        "t-01",
+        "Aguardando briefing consolidado com o cliente",
+        eq("u-ana"),
+      ),
+    ],
     subtarefas: [
       { id: "st-02a", label: "Primeira versão do roteiro", concluida: true },
       { id: "st-02b", label: "Revisão interna", concluida: false },
@@ -469,7 +486,9 @@ export const TASKS: Task[] = [
     referencias: [
       { label: "Lista de planos", url: "https://docs.google.com/spreadsheets/d/planos" },
     ],
-    dependsOn: ["t-02"],
+    dependsOn: [
+      dep("t-02", "Aguardando roteiro aprovado e lista de cenas", eq("u-carol")),
+    ],
     subtarefas: [
       { id: "st-03a", label: "Confirmar agenda com o cliente", concluida: true },
       { id: "st-03b", label: "Checklist de equipamento", concluida: false },
@@ -494,7 +513,10 @@ export const TASKS: Task[] = [
     referencias: [
       { label: "Projeto no Frame.io", url: "https://frame.io/alves-edicao" },
     ],
-    dependsOn: ["t-03", "t-06"],
+    dependsOn: [
+      dep("t-03", "Aguardando material bruto da captação", eq("u-diego")),
+      dep("t-06", "Aguardando trilha e locução finalizadas", eq("u-diego")),
+    ],
     subtarefas: [
       { id: "st-04a", label: "Corte bruto (V1)", concluida: false },
       { id: "st-04b", label: "Color grading", concluida: false },
@@ -521,7 +543,9 @@ export const TASKS: Task[] = [
     briefing:
       "Enviar corte final para o cliente, coletar ajustes por timestamp e obter aprovação formal por e-mail antes da entrega dos arquivos.",
     referencias: [],
-    dependsOn: ["t-04"],
+    dependsOn: [
+      dep("t-04", "Aguardando corte final para envio ao cliente", eq("u-diego")),
+    ],
     subtarefas: [
       { id: "st-05a", label: "Enviar link de revisão", concluida: false },
       { id: "st-05b", label: "Consolidar ajustes", concluida: false },
@@ -545,7 +569,9 @@ export const TASKS: Task[] = [
     referencias: [
       { label: "Playlist de referência", url: "https://open.spotify.com/playlist/abc" },
     ],
-    dependsOn: ["t-01"],
+    dependsOn: [
+      dep("t-01", "Aguardando definição de tom e direção no briefing", eq("u-ana")),
+    ],
     subtarefas: [
       { id: "st-06a", label: "Escolher 3 opções de trilha", concluida: true },
       { id: "st-06b", label: "Gravar locução", concluida: false },
@@ -599,7 +625,13 @@ export const TASKS: Task[] = [
     briefing:
       "Montar 6 templates editáveis no Figma (feed, carrossel e stories) seguindo o guia de estilo aprovado. Preparar para entrega ao cliente com biblioteca de componentes.",
     referencias: [{ label: "Arquivo de templates", url: "https://figma.com/file/dantas-templates" }],
-    dependsOn: ["t-07"],
+    dependsOn: [
+      dep(
+        "t-07",
+        "Aguardando aprovação do guia de estilo pelo cliente",
+        cli("c-05"),
+      ),
+    ],
     subtarefas: [
       { id: "st-08a", label: "Template de feed", concluida: false },
       { id: "st-08b", label: "Template de carrossel", concluida: false },
@@ -624,7 +656,9 @@ export const TASKS: Task[] = [
     referencias: [
       { label: "Calendário editorial", url: "https://docs.google.com/spreadsheets/d/dantas-calendario" },
     ],
-    dependsOn: ["t-08"],
+    dependsOn: [
+      dep("t-08", "Aguardando kit de templates finalizado", eq("u-carol")),
+    ],
     subtarefas: [
       { id: "st-09a", label: "Redigir legendas", concluida: false },
       { id: "st-09b", label: "Programar publicações", concluida: false },
@@ -672,7 +706,13 @@ export const TASKS: Task[] = [
     briefing:
       "Desenhar wireframes de baixa fidelidade das 5 páginas internas priorizadas no levantamento. Foco em hierarquia de informação, não em visual.",
     referencias: [{ label: "Wireframes no Figma", url: "https://figma.com/file/moura-wireframes" }],
-    dependsOn: ["t-10"],
+    dependsOn: [
+      dep(
+        "t-10",
+        "Aguardando mapa do site e lista de integrações",
+        eq("u-bruno"),
+      ),
+    ],
     subtarefas: [
       { id: "st-11a", label: "Home", concluida: true },
       { id: "st-11b", label: "Serviços", concluida: false },
@@ -697,7 +737,13 @@ export const TASKS: Task[] = [
     briefing:
       "Implementar o site em Next.js a partir dos wireframes aprovados e do layout final. Responsivo, com CMS leve para o time do cliente editar textos.",
     referencias: [{ label: "Repositório", url: "https://github.com/emerge/moura-site" }],
-    dependsOn: ["t-11"],
+    dependsOn: [
+      dep(
+        "t-11",
+        "Aguardando wireframes aprovados e layout final",
+        eq("u-carol"),
+      ),
+    ],
     subtarefas: [
       { id: "st-12a", label: "Setup do projeto", concluida: false },
       { id: "st-12b", label: "Componentes base", concluida: false },

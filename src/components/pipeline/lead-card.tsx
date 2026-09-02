@@ -6,11 +6,21 @@ import { TEAM_BY_ID } from "@/lib/mock-data";
 import type { Lead } from "@/lib/types";
 import { cn, formatCompactCurrency, relativeDate } from "@/lib/utils";
 
-export function LeadCard({ lead }: { lead: Lead }) {
+export function LeadCard({
+  lead,
+  onOpen,
+}: {
+  lead: Lead;
+  onOpen?: (id: string) => void;
+}) {
   const responsavel = TEAM_BY_ID[lead.responsavelId];
 
   return (
-    <article className="group border-border bg-card hover:border-brand/40 rounded-xl border p-3.5 shadow-sm transition-colors">
+    <button
+      type="button"
+      onClick={() => onOpen?.(lead.id)}
+      className="group border-border bg-card hover:border-brand/40 w-full rounded-xl border p-3.5 text-left shadow-sm transition-colors"
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h4 className="truncate text-sm font-semibold">{lead.nome}</h4>
@@ -76,6 +86,6 @@ export function LeadCard({ lead }: { lead: Lead }) {
           {relativeDate(lead.atualizadoEm)}
         </span>
       </div>
-    </article>
+    </button>
   );
 }

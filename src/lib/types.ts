@@ -139,6 +139,23 @@ export interface TaskGoalLink {
   unidade: string;
 }
 
+/** Responsavel por destravar uma dependencia: um membro da equipe ou um cliente. */
+export interface DependencyResponsavel {
+  tipo: "equipe" | "cliente";
+  /** id de TeamMember (tipo "equipe") ou de Client (tipo "cliente") */
+  id: string;
+}
+
+/**
+ * Uma dependencia = "esta task esta bloqueada pela task `taskId`".
+ * Toda dependencia exige um motivo e um responsavel por destrava-la.
+ */
+export interface TaskDependency {
+  taskId: string;
+  motivo: string;
+  responsavel: DependencyResponsavel;
+}
+
 export interface Task {
   id: string;
   titulo: string;
@@ -155,8 +172,8 @@ export interface Task {
   /** descricao longa / multi-linha */
   briefing: string;
   referencias: TaskReference[];
-  /** ids de tasks que bloqueiam esta (edge: bloqueadora -> esta) */
-  dependsOn: string[];
+  /** tasks que bloqueiam esta (edge: bloqueadora -> esta), com motivo e responsavel */
+  dependsOn: TaskDependency[];
   subtarefas: TaskSubtask[];
   comentarios: TaskComment[];
   aprovacao: TaskApproval;

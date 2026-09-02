@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { KanbanSquare, Workflow } from "lucide-react";
 
 import { KanbanBoard } from "@/components/pipeline/kanban-board";
+import { LeadDetailSheet } from "@/components/pipeline/lead-detail-sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Lead } from "@/lib/types";
+import type { Lead, PipelineStageId } from "@/lib/types";
 import { formatCompactCurrency } from "@/lib/utils";
 
 const PipelineFlow = dynamic(
@@ -24,8 +25,18 @@ const PipelineFlow = dynamic(
 
 type PipelineViewMode = "board" | "flow";
 
-export function PipelineView({ leads }: { leads: Lead[] }) {
+export function PipelineView({ leads: seed }: { leads: Lead[] }) {
   const [mode, setMode] = useState<PipelineViewMode>("board");
+  const [leads, setLeads] = useState<Lead[]>(() => structuredClone(seed));
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+
+  const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null;
+
+  const changeStage = useCallback((id: string, stage: PipelineStageId) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, stage } : l)),
+    );
+  }, []);
 
   const stats = useMemo(() => {
     const abertos = leads.filter(
@@ -101,13 +112,21 @@ export function PipelineView({ leads }: { leads: Lead[] }) {
       */}
       <div className="min-h-0 flex-1">
         {mode === "board" ? (
-          <KanbanBoard leads={leads} />
+          <KanbanBoard leads={leads} onOpenLead={setSelectedLeadId} />
         ) : (
           <div className="border-border h-full border-t">
-            <PipelineFlow leads={leads} />
+            <PipelineFlow leads={leads} onOpenLead={setSelectedLeadId} />
           </div>
         )}
       </div>
+
+      <LeadDetailSheet
+        lead={selectedLead}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLeadId(null);
+        }}
+        onChangeStage={changeStage}
+      />
     </div>
   );
 }
