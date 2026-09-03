@@ -13,7 +13,8 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     pathname === "/login" ||
     pathname === "/privacidade" ||
-    pathname.startsWith("/auth");
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/c/"); // cronograma público por token
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

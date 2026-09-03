@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { Topbar } from "@/components/layout/topbar";
+import { CronogramasSection } from "@/components/clientes/cronogramas-section";
 import { StatusPill } from "@/components/status-pill";
 import { can } from "@/lib/auth/roles";
+import { listCronogramas } from "@/lib/cronogramas/queries";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -77,6 +79,9 @@ export default async function ClienteHubPage({
     .maybeSingle();
 
   if (error || !client) notFound();
+
+  const canManage = await can("clientes.manage");
+  const cronogramas = await listCronogramas(id);
 
   const [recRes, specRes, taskRes] = await Promise.all([
     supabase
@@ -245,6 +250,12 @@ export default async function ClienteHubPage({
             </div>
           )}
         </Section>
+
+        <CronogramasSection
+          clientId={id}
+          cronogramas={cronogramas}
+          canManage={canManage}
+        />
 
         {/* tarefas do cliente */}
         <Section title="Tarefas do cliente" hint={`${tasks.length} no total`}>

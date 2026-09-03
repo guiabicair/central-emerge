@@ -8,7 +8,7 @@ import {
   startOfMonth,
   ymd,
 } from "@/lib/calendar";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createUntypedClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Calendário · Central Emerge" };
 
@@ -80,13 +80,15 @@ export default async function CalendarioPage({
   const isoEnd = ymd(winEnd);
 
   const supabase = await createClient();
-  const [canView, canTasks] = await Promise.all([
+  const db = await createUntypedClient();
+  const [canView, canTasks, canClientes] = await Promise.all([
     can("calendario.view"),
     can("tarefas.view"),
+    can("clientes.view"),
   ]);
 
   const empty = Promise.resolve({ data: [], error: null } as const);
-  const [evRes, taskRes, lastEvRes, lastTaskRes] = await Promise.all([
+  const [evRes, taskRes, cronoRes, lastEvRes, lastTaskRes] = await Promise.all([
     canView
       ? supabase
           .from("calendar_events")
@@ -105,6 +107,16 @@ export default async function CalendarioPage({
           .gte("due_date", isoStart)
           .lt("due_date", isoEnd)
           .order("due_date")
+      : empty,
+    canView && canClientes
+      ? db
+          .from("app_cronograma_itens")
+          .select(
+            "id, text, status, date, cronograma_id, app_cronogramas(client_id, title)",
+          )
+          .not("date", "is", null)
+          .gte("date", isoStart)
+          .lt("date", isoEnd)
       : empty,
     canView
       ? supabase
@@ -169,6 +181,36 @@ export default async function CalendarioPage({
       color: done ? "var(--ink-muted)" : "var(--action)",
       meta: done ? "prazo · encerrada" : "prazo",
       href: "/tarefas",
+    });
+  }
+
+  for (const raw of (cronoRes.data ?? []) as unknown[]) {
+    const it = raw as {
+      id: string;
+      text: string;
+      status: string;
+      date: string;
+      cronograma_id: string;
+      app_cronogramas?:
+        | { client_id: string | null; title: string }
+        | { client_id: string | null; title: string }[]
+        | null;
+    };
+    const crono = Array.isArray(it.app_cronogramas)
+      ? it.app_cronogramas[0]
+      : it.app_cronogramas;
+    // date é coluna DATE (não timestamptz) — o dia já é o dia, sem fuso.
+    const done = it.status === "concluido";
+    push(it.date, {
+      kind: "task",
+      id: it.id,
+      title: it.text,
+      time: null,
+      color: done ? "var(--ink-muted)" : "var(--auto)",
+      meta: `cronograma${crono?.title ? ` · ${crono.title}` : ""}`,
+      href: crono?.client_id
+        ? `/clientes/${crono.client_id}/cronograma/${it.cronograma_id}`
+        : null,
     });
   }
 
