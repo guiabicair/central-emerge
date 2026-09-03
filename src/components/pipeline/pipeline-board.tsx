@@ -1,11 +1,21 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import type { DragEvent } from "react";
 import dynamic from "next/dynamic";
-import { KanbanSquare, Pencil, Plus, Trash2, Workflow } from "lucide-react";
+import {
+  ExternalLink,
+  GripVertical,
+  KanbanSquare,
+  Pencil,
+  Plus,
+  Trash2,
+  Workflow,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  closeDealCreateClient,
   deleteLead,
   moveLeadStage,
   saveLead,
@@ -52,17 +62,26 @@ export interface LeadRow {
   responsavel: string | null;
   status: string;
   motivo_fit: string | null;
+  proposta_slug: string | null;
   criado_por: string;
   criado_em: string;
 }
 
-const COLUMNS: { id: LeadStatus; label: string; dot: string }[] = [
+const COLUMNS: {
+  id: LeadStatus;
+  label: string;
+  dot: string;
+  aside?: boolean;
+}[] = [
   { id: "novo", label: "Novo", dot: "var(--wip)" },
   { id: "contatado", label: "Contatado", dot: "var(--data)" },
   { id: "qualificado", label: "Qualificado", dot: "var(--done)" },
-  { id: "descartado", label: "Descartado", dot: "var(--ink-muted)" },
   { id: "virou_proposta", label: "Virou proposta", dot: "var(--action)" },
+  { id: "proposta_aprovada", label: "Proposta aprovada", dot: "#22c55e" },
+  { id: "descartado", label: "Descartado", dot: "var(--ink-muted)", aside: true },
 ];
+
+const PROPOSTA_BASE = "https://emerge-propostas.vercel.app";
 
 const FRENTE_LABEL: Record<string, string> = {
   criptoforja: "Criptoforja",
@@ -82,6 +101,7 @@ const BLANK: LeadInput = {
   responsavel: "",
   status: "novo",
   motivo_fit: "",
+  proposta_slug: "",
 };
 
 function toInput(l: LeadRow): LeadInput {
@@ -100,6 +120,7 @@ function toInput(l: LeadRow): LeadInput {
       ? (l.status as LeadStatus)
       : "novo",
     motivo_fit: l.motivo_fit ?? "",
+    proposta_slug: l.proposta_slug ?? "",
   };
 }
 
@@ -244,6 +265,20 @@ function LeadForm({
             />
           </label>
         </div>
+        {(form.status === "virou_proposta" ||
+          form.status === "proposta_aprovada") && (
+          <label className="block">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Slug da proposta
+            </span>
+            <input
+              value={form.proposta_slug ?? ""}
+              onChange={(e) => set("proposta_slug", e.target.value)}
+              placeholder="ex: varanda-estaiada-2026"
+              className={`mt-1 ${inputCls}`}
+            />
+          </label>
+        )}
         <label className="block">
           <span className="text-ink-muted text-[11px] font-semibold uppercase">
             Motivo / fit / observações
@@ -318,27 +353,41 @@ function LeadCard({
   canManage,
   onEdit,
   onDelete,
+  onMove,
+  onLinkProposta,
 }: {
   lead: LeadRow;
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onMove: (status: LeadStatus) => void;
+  onLinkProposta: () => void;
 }) {
-  const [, start] = useTransition();
-
   return (
-    <div className="border-line bg-surface rounded-xl border p-3">
+    <div
+      className="border-line bg-surface rounded-xl border p-3"
+      draggable={canManage}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/lead-id", String(lead.id));
+        e.dataTransfer.effectAllowed = "move";
+      }}
+    >
       <div className="flex items-start justify-between gap-2">
-        <button
-          type="button"
-          onClick={canManage ? onEdit : undefined}
-          className="min-w-0 text-left"
-        >
-          <div className="truncate text-sm font-semibold">{lead.empresa}</div>
-          <div className="text-ink-muted truncate text-xs">
-            {lead.segmento || FRENTE_LABEL[lead.frente] || lead.frente}
-          </div>
-        </button>
+        <div className="flex min-w-0 items-start gap-1.5">
+          {canManage && (
+            <GripVertical className="text-ink-muted mt-0.5 size-3.5 shrink-0 cursor-grab" />
+          )}
+          <button
+            type="button"
+            onClick={canManage ? onEdit : undefined}
+            className="min-w-0 text-left"
+          >
+            <div className="truncate text-sm font-semibold">{lead.empresa}</div>
+            <div className="text-ink-muted truncate text-xs">
+              {lead.segmento || FRENTE_LABEL[lead.frente] || lead.frente}
+            </div>
+          </button>
+        </div>
         {canManage && (
           <div className="flex shrink-0 gap-0.5">
             <Button variant="ghost" size="icon-sm" onClick={onEdit}>
@@ -355,6 +404,27 @@ function LeadCard({
         <div className="text-ink-muted mt-2 truncate text-xs">{lead.contato}</div>
       )}
 
+      {lead.status === "virou_proposta" &&
+        (lead.proposta_slug ? (
+          <a
+            href={`${PROPOSTA_BASE}/${lead.proposta_slug}`}
+            target="_blank"
+            rel="noreferrer"
+            className="border-line hover:border-data/40 text-ink-muted hover:text-ink mt-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
+          >
+            <ExternalLink className="size-3" />
+            {lead.proposta_slug}
+          </a>
+        ) : canManage ? (
+          <button
+            type="button"
+            onClick={onLinkProposta}
+            className="text-data-text mt-2 text-[11px] hover:underline"
+          >
+            + vincular proposta
+          </button>
+        ) : null)}
+
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-ink-muted text-[11px]">
           {lead.responsavel || lead.criado_por}
@@ -369,18 +439,7 @@ function LeadCard({
       {canManage && (
         <select
           value={lead.status}
-          onChange={(e) => {
-            const status = e.target.value as LeadStatus;
-            start(async () => {
-              try {
-                await moveLeadStage(lead.id, status);
-              } catch (err) {
-                toast.error(
-                  actionError(err, "Falhou ao mover"),
-                );
-              }
-            });
-          }}
+          onChange={(e) => onMove(e.target.value as LeadStatus)}
           className="border-line-strong text-ink-muted mt-2 h-7 w-full rounded-md border bg-transparent px-1.5 text-[11px] outline-none"
         >
           {COLUMNS.map((c) => (
@@ -395,7 +454,7 @@ function LeadCard({
 }
 
 export function PipelineBoard({
-  leads,
+  leads: leadsProp,
   canManage,
   loadError,
   canvas,
@@ -407,7 +466,13 @@ export function PipelineBoard({
 }) {
   const [editing, setEditing] = useState<LeadInput | null>(null);
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
+  const [closingDeal, setClosingDeal] = useState<LeadRow | null>(null);
   const [view, setView] = useState<"board" | "canvas">("board");
+  const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const [, start] = useTransition();
+
+  useEffect(() => setLeads(leadsProp), [leadsProp]);
 
   const byColumn = useMemo(() => {
     const map = new Map<string, LeadRow[]>();
@@ -419,6 +484,82 @@ export function PipelineBoard({
   }, [leads]);
 
   const totalValor = leads.reduce((s, l) => s + (l.valor_estimado || 0), 0);
+
+  const doMove = (lead: LeadRow, status: LeadStatus) => {
+    if (lead.status === status) return;
+    if (status === "proposta_aprovada") {
+      setClosingDeal(lead);
+      return;
+    }
+    setLeads((prev) =>
+      prev.map((l) => (l.id === lead.id ? { ...l, status } : l)),
+    );
+    start(async () => {
+      try {
+        await moveLeadStage(lead.id, status);
+      } catch (err) {
+        setLeads(leadsProp);
+        toast.error(actionError(err, "Falhou ao mover"));
+      }
+    });
+  };
+
+  const onDropCol = (colId: LeadStatus, e: DragEvent) => {
+    e.preventDefault();
+    setDragOver(null);
+    const id = Number(e.dataTransfer.getData("text/lead-id"));
+    const lead = leads.find((l) => l.id === id);
+    if (lead) doMove(lead, colId);
+  };
+
+  const renderColumn = (col: (typeof COLUMNS)[number]) => {
+    const items = byColumn.get(col.id) ?? [];
+    return (
+      <section key={col.id} className="flex w-[280px] shrink-0 flex-col">
+        <header className="mb-3 flex items-center gap-2 px-1">
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: col.dot }}
+          />
+          <h3 className="text-sm font-semibold">{col.label}</h3>
+          <span className="bg-surface-2 text-ink-muted rounded-full px-1.5 text-[11px] font-medium">
+            {items.length}
+          </span>
+        </header>
+        <div
+          onDragOver={(e) => {
+            if (!canManage) return;
+            e.preventDefault();
+            setDragOver(col.id);
+          }}
+          onDragLeave={() => setDragOver((d) => (d === col.id ? null : d))}
+          onDrop={(e) => onDropCol(col.id, e)}
+          className={`flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2 transition-colors ${
+            dragOver === col.id
+              ? "bg-data/10 ring-data/40 ring-1"
+              : "bg-surface-2/40"
+          }`}
+        >
+          {items.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              canManage={canManage}
+              onEdit={() => setEditing(toInput(lead))}
+              onDelete={() => setDeleting(lead)}
+              onMove={(status) => doMove(lead, status)}
+              onLinkProposta={() => setEditing(toInput(lead))}
+            />
+          ))}
+          {items.length === 0 && (
+            <p className="text-ink-muted px-2 py-6 text-center text-xs">
+              Vazio
+            </p>
+          )}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <>
@@ -475,42 +616,9 @@ export function PipelineBoard({
         </div>
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
-          {COLUMNS.map((col) => {
-            const items = byColumn.get(col.id) ?? [];
-            return (
-              <section
-                key={col.id}
-                className="flex w-[280px] shrink-0 flex-col"
-              >
-                <header className="mb-3 flex items-center gap-2 px-1">
-                  <span
-                    className="size-2 rounded-full"
-                    style={{ backgroundColor: col.dot }}
-                  />
-                  <h3 className="text-sm font-semibold">{col.label}</h3>
-                  <span className="bg-surface-2 text-ink-muted rounded-full px-1.5 text-[11px] font-medium">
-                    {items.length}
-                  </span>
-                </header>
-                <div className="bg-surface-2/40 flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2">
-                  {items.map((lead) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      canManage={canManage}
-                      onEdit={() => setEditing(toInput(lead))}
-                      onDelete={() => setDeleting(lead)}
-                    />
-                  ))}
-                  {items.length === 0 && (
-                    <p className="text-ink-muted px-2 py-6 text-center text-xs">
-                      Vazio
-                    </p>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+          {COLUMNS.filter((c) => !c.aside).map(renderColumn)}
+          <div className="border-line mx-1 w-px shrink-0 self-stretch" />
+          {COLUMNS.filter((c) => c.aside).map(renderColumn)}
         </div>
       )}
 
@@ -525,6 +633,74 @@ export function PipelineBoard({
       {deleting && (
         <DeleteDialog lead={deleting} onClose={() => setDeleting(null)} />
       )}
+
+      {closingDeal && (
+        <CloseDealDialog
+          lead={closingDeal}
+          onClose={() => setClosingDeal(null)}
+          onDone={() =>
+            setLeads((prev) =>
+              prev.map((l) =>
+                l.id === closingDeal.id
+                  ? { ...l, status: "proposta_aprovada" }
+                  : l,
+              ),
+            )
+          }
+        />
+      )}
     </>
+  );
+}
+
+function CloseDealDialog({
+  lead,
+  onClose,
+  onDone,
+}: {
+  lead: LeadRow;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [pending, start] = useTransition();
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+      <div className="border-line bg-surface w-full max-w-sm rounded-xl border p-5">
+        <h3 className="text-sm font-semibold">
+          Fechar negócio: criar cliente {lead.empresa}?
+        </h3>
+        <p className="text-ink-muted mt-1 text-sm">
+          Move o lead pra “Proposta aprovada” e cria um cliente com o nome,
+          segmento e contato do lead. Contrato e cobrança ficam pra depois.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                try {
+                  const r = await closeDealCreateClient(lead.id);
+                  onDone();
+                  toast.success(
+                    r?.clientCreated
+                      ? "Negócio fechado · cliente criado"
+                      : "Negócio fechado · cliente já existia",
+                  );
+                  onClose();
+                } catch (err) {
+                  toast.error(actionError(err, "Falhou ao fechar negócio"));
+                }
+              })
+            }
+          >
+            {pending ? "Fechando…" : "Fechar negócio"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

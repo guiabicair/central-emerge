@@ -4,8 +4,9 @@ export const LEAD_STATUS = [
   "novo",
   "contatado",
   "qualificado",
-  "descartado",
   "virou_proposta",
+  "proposta_aprovada",
+  "descartado",
 ] as const;
 export type LeadStatus = (typeof LEAD_STATUS)[number];
 
@@ -29,4 +30,5 @@ export interface LeadInput {
   responsavel?: string;
   status: LeadStatus;
   motivo_fit?: string;
+  proposta_slug?: string;
 }

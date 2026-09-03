@@ -11,16 +11,18 @@ const STAGE_ORDER = [
   "novo",
   "contatado",
   "qualificado",
-  "descartado",
   "virou_proposta",
+  "proposta_aprovada",
+  "descartado",
 ] as const;
 
 const STAGE_DOT: Record<string, string> = {
   novo: "var(--wip)",
   contatado: "var(--data)",
   qualificado: "var(--done)",
-  descartado: "var(--ink-muted)",
   virou_proposta: "var(--action)",
+  proposta_aprovada: "#22c55e",
+  descartado: "var(--ink-muted)",
 };
 
 const COL_W = 300;

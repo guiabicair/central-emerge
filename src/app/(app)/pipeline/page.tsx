@@ -13,7 +13,7 @@ export default async function PipelinePage() {
     supabase
       .from("vendas_leads")
       .select(
-        "id, empresa, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, criado_por, criado_em",
+        "id, empresa, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
       )
       .order("atualizado_em", { ascending: false }),
     can("pipeline.manage"),
