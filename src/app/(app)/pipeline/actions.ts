@@ -113,7 +113,8 @@ export async function closeDealCreateClient(id: number) {
       segment: lead.segmento?.trim() || null,
       contact_name: lead.contato?.trim() || null,
       status: "active",
-      is_seed: false,
+      // negócio fechado = cliente real → entra na lista/dropdown padrão
+      is_seed: true,
       mrr: 0,
       created_by: user?.id ?? null,
     });
