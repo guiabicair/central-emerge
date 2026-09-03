@@ -265,6 +265,7 @@ export default async function CalendarioPage({
           thisM={fmt(startOfMonth(new Date()))}
           latestMonth={latestMonth}
           showTasksLayer={canTasks}
+          showCronoLayer={canClientes}
         />
       )}
     </>

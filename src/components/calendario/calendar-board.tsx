@@ -42,6 +42,7 @@ export function CalendarBoard({
   thisM,
   latestMonth,
   showTasksLayer,
+  showCronoLayer = false,
 }: {
   monthKey: string;
   gridDays: string[];
@@ -51,6 +52,7 @@ export function CalendarBoard({
   thisM: string;
   latestMonth: string | null;
   showTasksLayer: boolean;
+  showCronoLayer?: boolean;
 }) {
   const today = todayYmd();
   const firstOfMonth =
@@ -235,6 +237,15 @@ export function CalendarBoard({
               style={{ backgroundColor: "var(--action)" }}
             />
             Prazo de tarefa (due_date)
+          </span>
+        )}
+        {showCronoLayer && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="size-2 rounded-full"
+              style={{ backgroundColor: "var(--auto)" }}
+            />
+            Item de cronograma
           </span>
         )}
         {!showTasksLayer && (

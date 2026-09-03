@@ -28,6 +28,7 @@ export function CronogramasSection({
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [tpl, setTpl] = useState("");
+  const [confirmDel, setConfirmDel] = useState<CronogramaHeader | null>(null);
   const [pending, start] = useTransition();
 
   return (
@@ -125,22 +126,9 @@ export function CronogramasSection({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() =>
-                    start(async () => {
-                      if (
-                        !window.confirm(`Excluir o cronograma "${c.title}"?`)
-                      )
-                        return;
-                      try {
-                        await deleteCronograma(c.id, clientId);
-                        toast.success("Cronograma excluído");
-                        router.refresh();
-                      } catch (e) {
-                        toast.error(actionError(e, "Falhou ao excluir"));
-                      }
-                    })
-                  }
+                  onClick={() => setConfirmDel(c)}
                   className="text-ink-muted hover:text-gap shrink-0"
+                  aria-label={`Excluir cronograma ${c.title}`}
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -149,6 +137,48 @@ export function CronogramasSection({
           );
         })}
       </div>
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="border-line bg-surface w-full max-w-sm rounded-xl border p-5">
+            <h3 className="text-sm font-semibold">
+              Excluir “{confirmDel.title}”?
+            </h3>
+            <p className="text-ink-muted mt-1 text-sm">
+              Apaga as fases, itens e checklists junto. Não dá pra desfazer.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmDel(null)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    try {
+                      await deleteCronograma(confirmDel.id, clientId);
+                      toast.success("Cronograma excluído");
+                      setConfirmDel(null);
+                      router.refresh();
+                    } catch (e) {
+                      toast.error(actionError(e, "Falhou ao excluir"));
+                    }
+                  })
+                }
+              >
+                <Trash2 className="size-3.5" />
+                Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
