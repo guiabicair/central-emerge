@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatCurrency, formatDate, relativeDate } from "@/lib/utils";
+import { actionError, formatCurrency, formatDate, relativeDate } from "@/lib/utils";
 
 type Drill = "caixa" | "mrr" | "meta" | null;
 
@@ -143,7 +143,7 @@ function AdjustCashModal({
                   onClose();
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : "Falhou ao ajustar",
+                    actionError(err, "Falhou ao ajustar"),
                   );
                 }
               })

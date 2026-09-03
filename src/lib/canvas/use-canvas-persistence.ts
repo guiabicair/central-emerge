@@ -3,6 +3,8 @@
 import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 
+import { actionError } from "@/lib/utils";
+
 import {
   createCanvasEdge,
   deleteCanvasEdge,
@@ -27,7 +29,7 @@ export function useCanvasPersistence(board: string, canManage: boolean) {
         setTimeout(() => {
           saveNodePosition(board, entityId, x, y).catch((e) =>
             toast.error(
-              e instanceof Error ? e.message : "Falhou ao salvar posição",
+              actionError(e, "Falhou ao salvar posição"),
             ),
           );
           timers.current.delete(entityId);
@@ -44,7 +46,7 @@ export function useCanvasPersistence(board: string, canManage: boolean) {
         const { id } = await createCanvasEdge(board, source, target, label);
         return id;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Falhou ao conectar");
+        toast.error(actionError(e, "Falhou ao conectar"));
         return null;
       }
     },
@@ -58,7 +60,7 @@ export function useCanvasPersistence(board: string, canManage: boolean) {
         await deleteCanvasEdge(board, id);
         return true;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Falhou ao remover conexão");
+        toast.error(actionError(e, "Falhou ao remover conexão"));
         return false;
       }
     },

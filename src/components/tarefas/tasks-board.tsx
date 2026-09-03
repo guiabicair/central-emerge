@@ -24,7 +24,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatDate } from "@/lib/utils";
+import { actionError, formatDate } from "@/lib/utils";
 
 export interface TaskRow {
   id: string;
@@ -105,7 +105,7 @@ function TaskForm({
             toast.success(initial.id ? "Tarefa atualizada" : "Tarefa criada");
             onClose();
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Falhou ao salvar");
+            toast.error(actionError(err, "Falhou ao salvar"));
           }
         });
       }}
@@ -272,7 +272,7 @@ function DeleteDialog({
                   onClose();
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : "Falhou ao excluir",
+                    actionError(err, "Falhou ao excluir"),
                   );
                 }
               })
@@ -354,7 +354,7 @@ function Card({
                 await moveTaskStatus(task.id, status);
               } catch (err) {
                 toast.error(
-                  err instanceof Error ? err.message : "Falhou ao mover",
+                  actionError(err, "Falhou ao mover"),
                 );
               }
             });

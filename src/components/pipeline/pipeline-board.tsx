@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
-import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
+import { actionError, formatCompactCurrency, formatCurrency } from "@/lib/utils";
 
 const PipelineCanvas = dynamic(
   () =>
@@ -130,7 +130,7 @@ function LeadForm({
             toast.success(initial.id ? "Lead atualizado" : "Lead criado");
             onClose();
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Falhou ao salvar");
+            toast.error(actionError(err, "Falhou ao salvar"));
           }
         });
       }}
@@ -298,7 +298,7 @@ function DeleteDialog({
                   onClose();
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : "Falhou ao excluir",
+                    actionError(err, "Falhou ao excluir"),
                   );
                 }
               })
@@ -376,7 +376,7 @@ function LeadCard({
                 await moveLeadStage(lead.id, status);
               } catch (err) {
                 toast.error(
-                  err instanceof Error ? err.message : "Falhou ao mover",
+                  actionError(err, "Falhou ao mover"),
                 );
               }
             });

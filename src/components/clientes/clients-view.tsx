@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { actionError, formatCurrency } from "@/lib/utils";
 
 export interface ClientRow {
   id: string;
@@ -110,7 +110,7 @@ function ClientForm({
             toast.success(initial.id ? "Cliente atualizado" : "Cliente criado");
             onClose();
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Falhou ao salvar");
+            toast.error(actionError(err, "Falhou ao salvar"));
           }
         });
       }}
@@ -237,7 +237,7 @@ function DeleteDialog({
                   onClose();
                 } catch (err) {
                   toast.error(
-                    err instanceof Error ? err.message : "Falhou ao excluir",
+                    actionError(err, "Falhou ao excluir"),
                   );
                 }
               })

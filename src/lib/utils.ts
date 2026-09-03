@@ -48,6 +48,18 @@ export function relativeDate(iso: string) {
   return `${Math.round(days / 30)}m atrás`
 }
 
+/**
+ * Mensagem de erro amigável para toasts de Server Actions.
+ * Falhas de rede/transporte viram algo acionável em vez de "Load failed".
+ */
+export function actionError(err: unknown, fallback = "Não foi possível concluir.") {
+  const raw = err instanceof Error ? err.message : String(err ?? "")
+  if (/load failed|failed to fetch|fetch failed|networkerror|timed? out|connection/i.test(raw)) {
+    return "Falha de conexão. Verifique a internet e tente de novo."
+  }
+  return raw || fallback
+}
+
 /** Rotulo de prazo relativo (aceita datas futuras), para tarefas. */
 export function dueLabel(iso: string) {
   const days = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000)
