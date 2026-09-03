@@ -2245,8 +2245,10 @@ export type Database = {
           motivo_fit: string | null
           origem: string | null
           proposta_slug: string | null
+          responsavel: string | null
           segmento: string | null
           status: string
+          valor_estimado: number
         }
         Insert: {
           atualizado_em?: string
@@ -2259,8 +2261,10 @@ export type Database = {
           motivo_fit?: string | null
           origem?: string | null
           proposta_slug?: string | null
+          responsavel?: string | null
           segmento?: string | null
           status?: string
+          valor_estimado?: number
         }
         Update: {
           atualizado_em?: string
@@ -2273,8 +2277,10 @@ export type Database = {
           motivo_fit?: string | null
           origem?: string | null
           proposta_slug?: string | null
+          responsavel?: string | null
           segmento?: string | null
           status?: string
+          valor_estimado?: number
         }
         Relationships: [
           {
