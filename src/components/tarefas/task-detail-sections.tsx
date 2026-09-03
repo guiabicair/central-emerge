@@ -8,6 +8,7 @@ import {
   addComment,
   deleteComment,
   deleteDelivery,
+  deleteTimeEntry,
   reviewDelivery,
   startTimer,
   stopTimer,
@@ -101,6 +102,30 @@ function TimerSection({ task }: { task: TaskRow }) {
           </Button>
         )}
       </div>
+
+      {task.timeIntervals.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {task.timeIntervals.map((iv) => (
+            <div
+              key={iv.id}
+              className="text-ink-muted flex items-center justify-between text-[11px]"
+            >
+              <span>
+                {formatDate(iv.start)} · {fmtDuration(iv.seconds)}
+              </span>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => run(() => deleteTimeEntry(iv.id))}
+                className="hover:text-gap"
+                aria-label="Apagar intervalo"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

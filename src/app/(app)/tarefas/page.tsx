@@ -201,6 +201,7 @@ export default async function TarefasPage() {
   }
 
   const loggedByTask = new Map<string, number>();
+  const intervalsByTask = new Map<string, TaskRow["timeIntervals"]>();
   const activeTimerByTask = new Map<string, { id: string; startTime: string }>();
   for (const e of (timeRes.data ?? []) as TimeEntryDb[]) {
     if (e.is_active && e.user_id === user?.id) {
@@ -210,8 +211,17 @@ export default async function TarefasPage() {
       const secs =
         (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) /
         1000;
-      if (secs > 0)
+      if (secs > 0) {
         loggedByTask.set(e.task_id, (loggedByTask.get(e.task_id) ?? 0) + secs);
+        const arr = intervalsByTask.get(e.task_id) ?? [];
+        arr.push({
+          id: e.id,
+          start: e.start_time,
+          seconds: Math.round(secs),
+          mine: e.user_id === user?.id,
+        });
+        intervalsByTask.set(e.task_id, arr);
+      }
     }
   }
 
@@ -237,6 +247,7 @@ export default async function TarefasPage() {
     deliveries: delByTask.get(t.id) ?? [],
     loggedSeconds: Math.round(loggedByTask.get(t.id) ?? 0),
     activeTimer: activeTimerByTask.get(t.id) ?? null,
+    timeIntervals: intervalsByTask.get(t.id) ?? [],
   }));
 
   const people = (profilesRes.data ?? []).map((p) => ({

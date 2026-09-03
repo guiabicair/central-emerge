@@ -129,6 +129,15 @@ export async function stopTimer(entryId: string) {
   revalidatePath("/tarefas");
 }
 
+/** Apaga um intervalo registrado (corrige lançamento errado de tempo). */
+export async function deleteTimeEntry(id: string) {
+  await guard();
+  const db = await createUntypedClient();
+  const { error } = await db.from("time_entries").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
 /* --------------------------- Templates --------------------------- */
 
 interface TemplateInput {

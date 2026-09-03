@@ -99,6 +99,12 @@ export interface TaskRow {
   }[];
   loggedSeconds: number;
   activeTimer: { id: string; startTime: string } | null;
+  timeIntervals: {
+    id: string;
+    start: string;
+    seconds: number;
+    mine: boolean;
+  }[];
 }
 
 export interface TaskTemplate {
@@ -714,7 +720,6 @@ function TemplateManager({
   const [busy, setBusy] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
-  const [hours, setHours] = useState("");
   const [prio, setPrio] = useState("medium");
 
   const run = (key: string, fn: () => Promise<unknown>, after?: () => void) => {
@@ -750,7 +755,6 @@ function TemplateManager({
               <span className="text-sm font-medium">{t.title}</span>
               <span className="text-ink-muted text-[11px]">
                 {PRIO_LABEL[t.priority] ?? t.priority}
-                {t.estimatedHours ? ` · ${t.estimatedHours}h` : ""}
               </span>
             </div>
             {t.description && (
@@ -802,13 +806,6 @@ function TemplateManager({
             className="border-line-strong focus:border-data w-full rounded-md border bg-transparent px-2 py-1.5 text-sm outline-none"
           />
           <div className="flex gap-2">
-            <input
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              inputMode="numeric"
-              placeholder="Horas est."
-              className="border-line-strong h-8 w-24 rounded-md border bg-transparent px-2 text-sm outline-none"
-            />
             <select
               value={prio}
               onChange={(e) => setPrio(e.target.value)}
@@ -830,15 +827,12 @@ function TemplateManager({
                     createTemplate({
                       title,
                       description: desc,
-                      estimatedHours: hours.trim()
-                        ? Math.max(0, Math.round(Number(hours)))
-                        : null,
+                      estimatedHours: null,
                       priority: prio,
                     }),
                   () => {
                     setTitle("");
                     setDesc("");
-                    setHours("");
                   },
                 )
               }
