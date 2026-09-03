@@ -1,68 +1,106 @@
-import { ExternalLink, Plus } from "lucide-react";
-
 import { Topbar } from "@/components/layout/topbar";
-import { ProposalsTable } from "@/components/propostas/proposals-table";
-import { StatTile } from "@/components/stat-tile";
-import { PROPOSALS } from "@/lib/mock-data";
-import { proposalStats } from "@/lib/proposals";
-import { formatCompactCurrency } from "@/lib/utils";
+import {
+  ProposalsList,
+  type ProposalRow,
+  type TrafficRow,
+} from "@/components/propostas/proposals-list";
+import { can } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Propostas · Central Emerge" };
 
-const ADMIN_URL = "https://emerge-propostas.vercel.app/admin";
+function extractValor(investimento: unknown): number | null {
+  if (!investimento || typeof investimento !== "object") return null;
+  const o = investimento as Record<string, unknown>;
+  for (const k of ["total", "valor", "valor_total", "investimento_total", "preco"]) {
+    const n = Number(o[k]);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
 
-export default function PropostasPage() {
-  const stats = proposalStats(PROPOSALS);
+export default async function PropostasPage() {
+  const canView = await can("propostas.view");
+  if (!canView) {
+    return (
+      <>
+        <Topbar title="Propostas" />
+        <div className="flex-1 p-6">
+          <div className="border-line bg-surface rounded-2xl border p-6 text-sm">
+            Você não tem acesso às propostas.
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const supabase = await createClient();
+  const [propRes, evRes] = await Promise.all([
+    supabase
+      .from("propostas")
+      .select(
+        "id, slug, nome_cliente, nome_exibicao, status, data_proposta, valida_ate, investimento, aprovada_em",
+      )
+      .order("data_proposta", { ascending: false }),
+    supabase
+      .from("propostas_events")
+      .select("proposta, tipo, created_at"),
+  ]);
+
+  const loadError = propRes.error?.message ?? evRes.error?.message ?? null;
+
+  // agrega eventos por slug
+  const traffic = new Map<
+    string,
+    { pageviews: number; clicks: number; last: string }
+  >();
+  for (const e of evRes.data ?? []) {
+    if (!e.proposta) continue;
+    const t = traffic.get(e.proposta) ?? {
+      pageviews: 0,
+      clicks: 0,
+      last: e.created_at,
+    };
+    if (e.tipo === "pageview") t.pageviews += 1;
+    if (e.tipo === "click") t.clicks += 1;
+    if (e.created_at > t.last) t.last = e.created_at;
+    traffic.set(e.proposta, t);
+  }
+
+  const proposals: ProposalRow[] = (propRes.data ?? []).map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    cliente: p.nome_cliente,
+    exibicao: p.nome_exibicao,
+    status: p.status,
+    dataProposta: p.data_proposta,
+    validaAte: p.valida_ate,
+    valor: extractValor(p.investimento),
+    ultimaAbertura: traffic.get(p.slug)?.last ?? null,
+  }));
+
+  const proposalSlugs = new Set(proposals.map((p) => p.slug));
+  const trafficRows: TrafficRow[] = [...traffic.entries()]
+    .filter(([slug]) => !proposalSlugs.has(slug))
+    .map(([slug, t]) => ({ slug, ...t }))
+    .sort((a, b) => b.last.localeCompare(a.last));
 
   return (
     <>
       <Topbar
         title="Propostas"
-        description="Espelho do gerador — emerge-propostas.vercel.app"
+        description={
+          loadError
+            ? "Erro ao carregar — rode a migration 0008"
+            : `${proposals.length} propostas · leitura`
+        }
       />
-
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
-            <StatTile label="Total de propostas" value={stats.total} />
-            <StatTile
-              label="Taxa de aceite"
-              value={`${Math.round(stats.taxaAceite * 100)}%`}
-              hint={`${stats.aceitas}/${stats.enviadas} enviadas`}
-              accent="done"
-            />
-            <StatTile
-              label="Em propostas ativas"
-              value={formatCompactCurrency(stats.valorAtivas)}
-              hint="enviada + visualizada"
-            />
-            <StatTile
-              label="Valor fechado"
-              value={formatCompactCurrency(stats.valorFechado)}
-              hint="propostas aceitas"
-              accent="data"
-            />
-          </div>
-
-          <div className="flex flex-col items-end gap-1">
-            <a
-              href={ADMIN_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-primary text-primary-foreground hover:bg-primary/80 inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium"
-            >
-              <Plus className="size-4" />
-              Nova Proposta
-              <ExternalLink className="size-3.5 opacity-70" />
-            </a>
-            <p className="text-muted-foreground max-w-[220px] text-right text-[11px]">
-              Criação ainda acontece no painel do gerador — em breve direto por
-              aqui.
-            </p>
-          </div>
-        </div>
-
-        <ProposalsTable proposals={PROPOSALS} />
+      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <ProposalsList
+          proposals={proposals}
+          traffic={trafficRows}
+          loadError={loadError}
+        />
       </div>
     </>
   );
