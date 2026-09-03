@@ -23,6 +23,7 @@ export function RolesEditor({
   const [pending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState(roles[0]?.id ?? null);
   const [creating, setCreating] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLORS[1]);
 
@@ -145,12 +146,7 @@ export function RolesEditor({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() =>
-                  act(async () => {
-                    if (confirm(`Apagar o papel "${selected.name}"?`))
-                      await deleteRole(selected.id);
-                  })
-                }
+                onClick={() => setConfirmingDelete(true)}
                 className="text-muted-foreground hover:text-[#ff5d5d] ml-auto text-xs"
               >
                 Apagar papel
@@ -216,6 +212,41 @@ export function RolesEditor({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {confirmingDelete && selected && !selected.is_system && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="border-border bg-card w-full max-w-sm rounded-xl border p-5">
+            <h3 className="text-sm font-semibold">
+              Apagar o papel “{selected.name}”?
+            </h3>
+            <p className="text-muted-foreground mt-1 text-sm">
+              As pessoas com esse papel ficam sem ele. Não dá pra desfazer.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="text-muted-foreground px-3 py-1.5 text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  act(async () => {
+                    await deleteRole(selected.id);
+                    setConfirmingDelete(false);
+                  })
+                }
+                className="rounded-md bg-[#ff5d5d] px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Apagar papel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

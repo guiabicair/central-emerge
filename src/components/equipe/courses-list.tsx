@@ -126,6 +126,7 @@ export function CoursesList({
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<CourseItem | null>(null);
   const [pending, start] = useTransition();
 
   return (
@@ -183,16 +184,7 @@ export function CoursesList({
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() =>
-                        start(async () => {
-                          if (!confirm(`Excluir "${c.title}"?`)) return;
-                          try {
-                            await deleteCourse(c.id);
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Falhou");
-                          }
-                        })
-                      }
+                      onClick={() => setConfirmDel(c)}
                       className="text-muted-foreground hover:text-[#ff5d5d]"
                     >
                       <Trash2 className="size-3.5" />
@@ -241,6 +233,45 @@ export function CoursesList({
         <p className="text-muted-foreground py-10 text-center text-sm">
           Nenhum curso cadastrado.
         </p>
+      )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="border-border bg-card w-full max-w-sm rounded-xl border p-5">
+            <h3 className="text-sm font-semibold">
+              Excluir “{confirmDel.title}”?
+            </h3>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Não dá pra desfazer.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDel(null)}
+                className="text-muted-foreground px-3 py-1.5 text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    try {
+                      await deleteCourse(confirmDel.id);
+                      setConfirmDel(null);
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Falhou");
+                    }
+                  })
+                }
+                className="rounded-md bg-[#ff5d5d] px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
