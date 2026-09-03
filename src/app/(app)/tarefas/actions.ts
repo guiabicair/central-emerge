@@ -10,7 +10,7 @@ import {
 } from "@/app/(app)/tarefas/task-constants";
 import { can } from "@/lib/auth/roles";
 import { getUser } from "@/lib/supabase/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createUntypedClient } from "@/lib/supabase/server";
 
 async function guard() {
   if (!(await can("tarefas.manage"))) {
@@ -27,10 +27,13 @@ export async function saveTask(input: TaskInput) {
 
   const user = await getUser();
   const supabase = await createClient();
+  // briefing (coluna nova da 0011) ainda não está nos tipos gerados
+  const db = await createUntypedClient();
 
   const row = {
     title: input.title.trim(),
     description: input.description?.trim() || null,
+    briefing: input.briefing?.trim() || null,
     status: input.status,
     priority: input.priority,
     client_id: input.clientId || null,
@@ -43,16 +46,16 @@ export async function saveTask(input: TaskInput) {
 
   let taskId = input.id;
   if (taskId) {
-    const { error } = await supabase.from("tasks").update(row).eq("id", taskId);
+    const { error } = await db.from("tasks").update(row).eq("id", taskId);
     if (error) throw new Error(error.message);
   } else {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("tasks")
       .insert({ ...row, created_by: user?.id ?? null })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    taskId = data.id;
+    taskId = (data as { id: string }).id;
   }
 
   const { data: current } = await supabase
@@ -82,7 +85,69 @@ export async function saveTask(input: TaskInput) {
     );
   }
 
+  await reconcileSubtasks(supabase, taskId!, input.subtasks ?? [], user?.id ?? null);
+
   revalidatePath("/tarefas");
+}
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/** Sincroniza as subtarefas do form com a tabela subtasks (add / update / remove). */
+async function reconcileSubtasks(
+  supabase: Db,
+  taskId: string,
+  wanted: { id?: string; title: string; done: boolean }[],
+  userId: string | null,
+) {
+  const clean = wanted
+    .map((s) => ({ ...s, title: s.title.trim() }))
+    .filter((s) => s.title.length > 0);
+
+  const { data: existing } = await supabase
+    .from("subtasks")
+    .select("id, title, status")
+    .eq("parent_task_id", taskId);
+  const byId = new Map(
+    (existing ?? []).map((r) => [r.id as string, r as { id: string; title: string; status: string }]),
+  );
+  const keepIds = new Set(clean.filter((s) => s.id).map((s) => s.id as string));
+
+  const toDelete = [...byId.keys()].filter((id) => !keepIds.has(id));
+  if (toDelete.length) {
+    await supabase.from("subtasks").delete().in("id", toDelete);
+  }
+
+  const now = new Date().toISOString();
+  const toInsert = clean
+    .filter((s) => !s.id || !byId.has(s.id))
+    .map((s) => ({
+      parent_task_id: taskId,
+      title: s.title,
+      status: s.done ? "completed" : "pending",
+      priority: "medium",
+      completed_at: s.done ? now : null,
+      created_by: userId,
+    }));
+  if (toInsert.length) {
+    await supabase.from("subtasks").insert(toInsert);
+  }
+
+  for (const s of clean) {
+    if (!s.id) continue;
+    const prev = byId.get(s.id);
+    if (!prev) continue;
+    const nextStatus = s.done ? "completed" : "pending";
+    if (prev.title === s.title && prev.status === nextStatus) continue;
+    await supabase
+      .from("subtasks")
+      .update({
+        title: s.title,
+        status: nextStatus,
+        completed_at: s.done ? now : null,
+        updated_at: now,
+      })
+      .eq("id", s.id);
+  }
 }
 
 export async function moveTaskStatus(id: string, status: TaskStatusReal) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import {
 import {
   TASK_PRIORITY,
   TASK_STATUS,
+  type SubtaskInput,
   type TaskInput,
   type TaskPriorityReal,
   type TaskStatusReal,
@@ -30,6 +31,7 @@ export interface TaskRow {
   id: string;
   title: string;
   description: string | null;
+  briefing: string | null;
   status: string;
   priority: string;
   clientId: string | null;
@@ -39,6 +41,38 @@ export interface TaskRow {
   figmaLink: string | null;
   assignees: string[];
   assigneeNames: string[];
+  subtasks: { id: string; title: string; done: boolean }[];
+}
+
+const DRAFT_PREFIX = "emerge:task-draft:";
+
+function draftKey(id?: string) {
+  return `${DRAFT_PREFIX}${id ?? "new"}`;
+}
+function loadDraft(initial: TaskInput): TaskInput {
+  if (typeof window === "undefined") return initial;
+  try {
+    const raw = window.localStorage.getItem(draftKey(initial.id));
+    if (!raw) return initial;
+    const d = JSON.parse(raw) as Partial<TaskInput>;
+    return { ...initial, ...d, id: initial.id };
+  } catch {
+    return initial;
+  }
+}
+function saveDraft(f: TaskInput) {
+  try {
+    window.localStorage.setItem(draftKey(f.id), JSON.stringify(f));
+  } catch {
+    /* localStorage indisponível — segue sem rascunho */
+  }
+}
+function clearDraft(id?: string) {
+  try {
+    window.localStorage.removeItem(draftKey(id));
+  } catch {
+    /* ignore */
+  }
 }
 
 const COLUMNS: { id: TaskStatusReal; label: string; dot: string }[] = [
@@ -61,6 +95,7 @@ const PRIORITY: Record<
 const BLANK: TaskInput = {
   title: "",
   description: "",
+  briefing: "",
   status: "pending",
   priority: "medium",
   clientId: null,
@@ -68,6 +103,7 @@ const BLANK: TaskInput = {
   driveLink: "",
   figmaLink: "",
   assignees: [],
+  subtasks: [],
 };
 
 const inputCls =
@@ -84,10 +120,23 @@ function TaskForm({
   clients: { id: string; name: string }[];
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<TaskInput>(initial);
+  const [form, setForm] = useState<TaskInput>(() => loadDraft(initial));
+  const [hadDraft, setHadDraft] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !!window.localStorage.getItem(draftKey(initial.id));
+    } catch {
+      return false;
+    }
+  });
   const [pending, start] = useTransition();
   const set = <K extends keyof TaskInput>(k: K, v: TaskInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  // rascunho: o form não perde o que foi digitado se fechar/recarregar
+  useEffect(() => {
+    saveDraft(form);
+  }, [form]);
 
   const toggleAssignee = (id: string) =>
     set(
@@ -96,6 +145,25 @@ function TaskForm({
         ? form.assignees.filter((a) => a !== id)
         : [...form.assignees, id],
     );
+
+  const addSub = () =>
+    set("subtasks", [...form.subtasks, { title: "", done: false }]);
+  const patchSub = (i: number, p: Partial<SubtaskInput>) =>
+    set(
+      "subtasks",
+      form.subtasks.map((s, idx) => (idx === i ? { ...s, ...p } : s)),
+    );
+  const removeSub = (i: number) =>
+    set(
+      "subtasks",
+      form.subtasks.filter((_, idx) => idx !== i),
+    );
+
+  const discardDraft = () => {
+    clearDraft(initial.id);
+    setForm(initial);
+    setHadDraft(false);
+  };
 
   return (
     <form
@@ -106,6 +174,7 @@ function TaskForm({
         start(async () => {
           try {
             await saveTask(form);
+            clearDraft(initial.id);
             toast.success(initial.id ? "Tarefa atualizada" : "Tarefa criada");
             onClose();
           } catch (err) {
@@ -121,6 +190,18 @@ function TaskForm({
       </SheetHeader>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-5">
+        {hadDraft && (
+          <div className="border-line bg-surface-2/60 flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px]">
+            <span className="text-ink-muted">Rascunho recuperado.</span>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="text-data-text hover:underline"
+            >
+              Descartar
+            </button>
+          </div>
+        )}
         <label className="block">
           <span className="text-ink-muted text-[11px] font-semibold uppercase">
             Título *
@@ -139,7 +220,19 @@ function TaskForm({
           <textarea
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            rows={3}
+            rows={2}
+            className="border-line-strong focus:border-data mt-1 w-full rounded-md border bg-transparent px-2.5 py-2 text-sm outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="text-ink-muted text-[11px] font-semibold uppercase">
+            Briefing
+          </span>
+          <textarea
+            value={form.briefing ?? ""}
+            onChange={(e) => set("briefing", e.target.value)}
+            rows={5}
+            placeholder="Contexto completo, referências, requisitos, tom…"
             className="border-line-strong focus:border-data mt-1 w-full rounded-md border bg-transparent px-2.5 py-2 text-sm outline-none"
           />
         </label>
@@ -261,6 +354,61 @@ function TaskForm({
             ))}
           </div>
         </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Subtarefas
+              {form.subtasks.length > 0 && (
+                <span className="ml-1 normal-case">
+                  ({form.subtasks.filter((s) => s.done).length}/
+                  {form.subtasks.length})
+                </span>
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={addSub}
+            >
+              <Plus className="size-3" />
+              Adicionar
+            </Button>
+          </div>
+          <div className="mt-1 space-y-1.5">
+            {form.subtasks.length === 0 && (
+              <p className="text-ink-muted text-xs">Nenhuma subtarefa.</p>
+            )}
+            {form.subtasks.map((s, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={s.done}
+                  onChange={() => patchSub(i, { done: !s.done })}
+                  className="accent-[var(--data)]"
+                  aria-label="Concluída"
+                />
+                <input
+                  value={s.title}
+                  onChange={(e) => patchSub(i, { title: e.target.value })}
+                  placeholder="Descreva a subtarefa"
+                  className={`border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none ${
+                    s.done ? "text-ink-muted line-through" : ""
+                  }`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeSub(i)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="border-line flex justify-end gap-2 border-t p-4">
@@ -368,6 +516,12 @@ function Card({
             {formatDate(task.dueDate)}
           </span>
         )}
+        {task.subtasks.length > 0 && (
+          <span className="text-ink-muted text-[11px]">
+            ✓ {task.subtasks.filter((s) => s.done).length}/
+            {task.subtasks.length}
+          </span>
+        )}
       </div>
 
       {(task.driveLink || task.figmaLink) && (
@@ -460,6 +614,7 @@ export function TasksBoard({
     id: t.id,
     title: t.title,
     description: t.description ?? "",
+    briefing: t.briefing ?? "",
     status: (TASK_STATUS as readonly string[]).includes(t.status)
       ? (t.status as TaskStatusReal)
       : "pending",
@@ -471,6 +626,11 @@ export function TasksBoard({
     driveLink: t.driveLink ?? "",
     figmaLink: t.figmaLink ?? "",
     assignees: t.assignees,
+    subtasks: t.subtasks.map((s) => ({
+      id: s.id,
+      title: s.title,
+      done: s.done,
+    })),
   });
 
   return (
@@ -543,6 +703,7 @@ export function TasksBoard({
         <SheetContent side="right" className="w-full p-0 sm:max-w-[460px]">
           {editing && (
             <TaskForm
+              key={editing.id ?? "new"}
               initial={editing}
               people={people}
               clients={clients}
