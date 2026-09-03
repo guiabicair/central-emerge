@@ -40,7 +40,7 @@ export default async function FinanceiroPage() {
       seedIds.length
         ? supabase
             .from("recurring_projects")
-            .select("id, title, monthly_amount, start_date, client_id")
+            .select("id, title, monthly_amount, start_date, end_date, client_id")
             .eq("status", "active")
             .in("client_id", seedIds)
         : Promise.resolve({ data: [], error: null } as const),
@@ -83,6 +83,7 @@ export default async function FinanceiroPage() {
     title: r.title,
     monthlyAmount: Number(r.monthly_amount) || 0,
     startDate: r.start_date,
+    endDate: (r as { end_date?: string | null }).end_date ?? null,
     clientName: clientName.get(r.client_id ?? "") ?? "—",
   }));
   const mrr = recurring.reduce((s, r) => s + r.monthlyAmount, 0);
@@ -100,11 +101,32 @@ export default async function FinanceiroPage() {
     expensesByMonth.set(m, (expensesByMonth.get(m) ?? 0) + (Number(e.amount) || 0));
   }
 
-  const chart = months.map((m) => ({
-    mes: m.slice(5) + "/" + m.slice(2, 4),
-    entradas: mrr + (specificByMonth.get(m) ?? 0),
-    saidas: expensesByMonth.get(m) ?? 0,
-  }));
+  const lastDayOf = (m: string) =>
+    new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)
+      .toISOString()
+      .slice(0, 10);
+
+  // entrada recorrente reconhecida no mês = contratos ativos naquele mês
+  // (start_date <= fim do mês e sem fim antes do começo). Nada de MRR "chapado".
+  const chart = months.map((m) => {
+    const monthEnd = lastDayOf(m);
+    const monthStart = `${m}-01`;
+    const recorrenteMes = recurring
+      .filter(
+        (r) =>
+          r.startDate <= monthEnd &&
+          (!r.endDate || r.endDate >= monthStart),
+      )
+      .reduce((s, r) => s + r.monthlyAmount, 0);
+    return {
+      mes: m.slice(5) + "/" + m.slice(2, 4),
+      entradas: recorrenteMes + (specificByMonth.get(m) ?? 0),
+      saidas: expensesByMonth.get(m) ?? 0,
+    };
+  });
+  const chartHasData =
+    chart.some((d) => d.saidas > 0) ||
+    chart.filter((d) => d.entradas > 0).length >= 2;
 
   const cashHistory = (cashRes.data ?? []).map((r) => ({
     id: r.id,
@@ -123,7 +145,9 @@ export default async function FinanceiroPage() {
     (s, r) => s + (Number(r.realizado_valor) || 0),
     0,
   );
-  const entradasMes = mrr + (specificByMonth.get(periodo) ?? 0);
+  // referência (não é o realizado da meta): entradas da empresa no mês corrente
+  const entradasMes =
+    (chart.at(-1)?.entradas ?? 0);
 
   return (
     <>
@@ -156,6 +180,7 @@ export default async function FinanceiroPage() {
               : null
           }
           chart={chart}
+          chartHasData={chartHasData}
           recurring={recurring}
           cashHistory={cashHistory}
           periodo={periodo}

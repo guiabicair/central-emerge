@@ -34,11 +34,13 @@ interface Props {
   mrr: number;
   meta: Meta | null;
   chart: { mes: string; entradas: number; saidas: number }[];
+  chartHasData: boolean;
   recurring: {
     id: string;
     title: string;
     monthlyAmount: number;
     startDate: string;
+    endDate: string | null;
     clientName: string;
   }[];
   cashHistory: {
@@ -208,7 +210,9 @@ export function FinanceView(props: Props) {
           value={props.meta ? formatCurrency(props.meta.valor) : "definir meta"}
           hint={
             props.meta
-              ? `realizado ${formatCurrency(props.meta.entradasMes)}`
+              ? `realizado ${formatCurrency(props.meta.realizado)}${
+                  props.meta.status === "confirmada" ? "" : " · rascunho"
+                }`
               : `vendas_metas · ${props.periodo}`
           }
           onClick={() => setDrill("meta")}
@@ -221,7 +225,15 @@ export function FinanceView(props: Props) {
           <span className="text-ink-muted text-xs">últimos 6 meses</span>
         </div>
         <div className="mt-3">
-          <FinanceChart data={props.chart} />
+          {props.chartHasData ? (
+            <FinanceChart data={props.chart} />
+          ) : (
+            <p className="text-ink-muted py-10 text-center text-sm">
+              Ainda não há movimentações suficientes nos últimos 6 meses. O
+              gráfico aparece quando houver pagamentos de projetos e despesas
+              lançados.
+            </p>
+          )}
         </div>
       </div>
 
@@ -323,10 +335,11 @@ export function FinanceView(props: Props) {
                       <div className="border-line rounded-lg border p-3">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-ink-muted">
-                            Realizado no mês
+                            Realizado registrado{" "}
+                            {props.meta.status === "confirmada" ? "" : "(rascunho)"}
                           </span>
                           <span className="font-semibold">
-                            {formatCurrency(props.meta.entradasMes)} /{" "}
+                            {formatCurrency(props.meta.realizado)} /{" "}
                             {formatCurrency(props.meta.valor)}
                           </span>
                         </div>
@@ -337,13 +350,17 @@ export function FinanceView(props: Props) {
                               width: `${Math.min(
                                 100,
                                 props.meta.valor
-                                  ? (props.meta.entradasMes / props.meta.valor) *
-                                      100
+                                  ? (props.meta.realizado / props.meta.valor) * 100
                                   : 0,
                               )}%`,
                             }}
                           />
                         </div>
+                        <p className="text-ink-muted mt-2 text-[11px]">
+                          Referência — entradas da empresa no mês:{" "}
+                          {formatCurrency(props.meta.entradasMes)} (não é o
+                          realizado desta meta).
+                        </p>
                       </div>
                       <p className="text-ink-muted text-[11px]">
                         Por frente (meta · realizado registrado em vendas_metas):

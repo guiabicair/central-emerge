@@ -4,6 +4,8 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -56,6 +58,7 @@ export function FinanceChart({
             />
           }
         />
+        <ChartLegend content={<ChartLegendContent />} />
         <Bar
           dataKey="entradas"
           fill="var(--data)"
