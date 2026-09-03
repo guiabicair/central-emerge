@@ -1,6 +1,7 @@
 import { Topbar } from "@/components/layout/topbar";
 import { TasksBoard, type TaskRow } from "@/components/tarefas/tasks-board";
 import { can } from "@/lib/auth/roles";
+import { getUser } from "@/lib/supabase/auth";
 import { createClient, createUntypedClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Tarefas · Central Emerge" };
@@ -28,6 +29,7 @@ interface SubtaskDb {
 export default async function TarefasPage() {
   const supabase = await createClient();
   const db = await createUntypedClient();
+  const user = await getUser();
 
   const [
     tasksRes,
@@ -140,6 +142,7 @@ export default async function TarefasPage() {
         statuses={statuses}
         people={people}
         clients={clients}
+        currentUserId={user?.id ?? null}
         canManage={canManage}
         loadError={loadError}
       />

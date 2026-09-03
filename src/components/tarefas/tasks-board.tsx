@@ -48,6 +48,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { brtParts } from "@/lib/calendar";
 import { actionError, cn, formatDate } from "@/lib/utils";
 
 export interface TaskRow {
@@ -796,11 +797,39 @@ function ColumnManager({
   );
 }
 
+const DONE_NAMES = new Set(["completed", "cancelled"]);
+const PRIO_LABEL: Record<string, string> = {
+  urgent: "Urgente",
+  high: "Alta",
+  medium: "Média",
+  low: "Baixa",
+};
+const QUICK_LABEL: Record<string, string> = {
+  minhas: "Minhas",
+  hoje: "Hoje",
+  atrasadas: "Atrasadas",
+};
+
+interface Filters {
+  priority: string | null;
+  status: string | null;
+  clientId: string | null;
+  period: "all" | "week" | "month" | "none";
+}
+const NO_FILTERS: Filters = {
+  priority: null,
+  status: null,
+  clientId: null,
+  period: "all",
+};
+type Quick = "minhas" | "hoje" | "atrasadas";
+
 export function TasksBoard({
   tasks,
   statuses,
   people,
   clients,
+  currentUserId,
   canManage,
   loadError,
 }: {
@@ -808,6 +837,7 @@ export function TasksBoard({
   statuses: StatusCol[];
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
+  currentUserId: string | null;
   canManage: boolean;
   loadError: string | null;
 }) {
@@ -815,19 +845,156 @@ export function TasksBoard({
   const [deleting, setDeleting] = useState<TaskRow | null>(null);
   const [manageCols, setManageCols] = useState(false);
   const [view, setView] = useState<BoardView>("kanban");
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [quick, setQuick] = useState<Set<Quick>>(() => new Set());
 
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
     [statuses],
   );
   const fallbackCol = cols[0]?.name ?? "pending";
+  const colName = (want: string) =>
+    cols.find((c) => c.name === want)?.name ?? null;
+
+  const todayIso = useMemo(
+    () => brtParts(new Date().toISOString()).day,
+    [],
+  );
+
+  const filtersActive =
+    !!filters.priority ||
+    !!filters.status ||
+    !!filters.clientId ||
+    filters.period !== "all" ||
+    quick.size > 0;
+
+  const quickCount = useMemo(() => {
+    const isOverdue = (t: TaskRow) =>
+      !!t.dueDate &&
+      brtParts(t.dueDate).day < todayIso &&
+      !DONE_NAMES.has(t.status);
+    return {
+      minhas: currentUserId
+        ? tasks.filter((t) => t.assignees.includes(currentUserId)).length
+        : 0,
+      hoje: tasks.filter(
+        (t) => t.dueDate && brtParts(t.dueDate).day === todayIso,
+      ).length,
+      atrasadas: tasks.filter(isOverdue).length,
+    };
+  }, [tasks, currentUserId, todayIso]);
+
+  const filteredTasks = useMemo(() => {
+    const monthPrefix = todayIso.slice(0, 7);
+    const weekEnd = (() => {
+      const [y, m, d] = todayIso.split("-").map(Number);
+      const dt = new Date(y, m - 1, d + 7);
+      return brtParts(dt.toISOString()).day;
+    })();
+    return tasks.filter((t) => {
+      if (filters.priority && t.priority !== filters.priority) return false;
+      if (filters.status && t.status !== filters.status) return false;
+      if (filters.clientId && t.clientId !== filters.clientId) return false;
+      if (filters.period === "none" && t.dueDate) return false;
+      if (filters.period === "week") {
+        if (!t.dueDate) return false;
+        const day = brtParts(t.dueDate).day;
+        if (day < todayIso || day > weekEnd) return false;
+      }
+      if (filters.period === "month") {
+        if (!t.dueDate || !brtParts(t.dueDate).day.startsWith(monthPrefix))
+          return false;
+      }
+      if (
+        quick.has("minhas") &&
+        (!currentUserId || !t.assignees.includes(currentUserId))
+      )
+        return false;
+      if (
+        quick.has("hoje") &&
+        (!t.dueDate || brtParts(t.dueDate).day !== todayIso)
+      )
+        return false;
+      if (
+        quick.has("atrasadas") &&
+        (!t.dueDate ||
+          brtParts(t.dueDate).day >= todayIso ||
+          DONE_NAMES.has(t.status))
+      )
+        return false;
+      return true;
+    });
+  }, [tasks, filters, quick, currentUserId, todayIso]);
+
+  const clearFilters = () => {
+    setFilters(NO_FILTERS);
+    setQuick(new Set());
+  };
+  const toggleQuick = (q: Quick) =>
+    setQuick((s) => {
+      const n = new Set(s);
+      if (n.has(q)) n.delete(q);
+      else n.add(q);
+      toast.message(
+        n.has(q) ? `Filtro: ${QUICK_LABEL[q]}` : "Filtro removido",
+      );
+      return n;
+    });
+
+  // atalhos de teclado (ignora quando digitando)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+      )
+        return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "escape" || k === "r") {
+        if (filtersActive) {
+          clearFilters();
+          toast.message("Filtros removidos");
+        }
+        return;
+      }
+      if (k === "p") {
+        const n = colName("pending") ?? fallbackCol;
+        setFilters((f) => ({ ...f, status: n }));
+        toast.message("Filtro: Pendentes");
+      } else if (k === "c") {
+        const n = colName("completed");
+        if (n) {
+          setFilters((f) => ({ ...f, status: n }));
+          toast.message("Filtro: Concluídas");
+        }
+      } else if (["1", "2", "3", "4"].includes(k)) {
+        const map: Record<string, string> = {
+          "1": "urgent",
+          "2": "high",
+          "3": "medium",
+          "4": "low",
+        };
+        setFilters((f) => ({ ...f, priority: map[k] }));
+        toast.message(`Filtro: prioridade ${PRIO_LABEL[map[k]]}`);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersActive, cols, fallbackCol]);
 
   const byColumn = useMemo(() => {
     const map = new Map<string, TaskRow[]>();
     for (const c of cols) map.set(c.name, []);
-    for (const t of tasks) (map.get(t.status) ?? map.get(fallbackCol))?.push(t);
+    for (const t of filteredTasks)
+      (map.get(t.status) ?? map.get(fallbackCol))?.push(t);
     return map;
-  }, [tasks, cols, fallbackCol]);
+  }, [filteredTasks, cols, fallbackCol]);
 
   const toInput = (t: TaskRow): TaskInput => ({
     id: t.id,
@@ -878,7 +1045,9 @@ export function TasksBoard({
             })}
           </div>
           <span className="text-ink-muted text-xs">
-            {tasks.length} tarefas · {cols.length} colunas
+            {filtersActive
+              ? `${filteredTasks.length} de ${tasks.length}`
+              : `${tasks.length} tarefas · ${cols.length} colunas`}
           </span>
         </div>
         {canManage && (
@@ -902,6 +1071,118 @@ export function TasksBoard({
         )}
       </div>
 
+      {!loadError && (
+        <div className="border-line flex flex-wrap items-center gap-2 border-b px-4 py-2 text-xs md:px-6">
+          {(["minhas", "hoje", "atrasadas"] as Quick[]).map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => toggleQuick(q)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium transition-colors",
+                quick.has(q)
+                  ? "border-data/40 bg-data/12 text-data-text"
+                  : "border-line text-ink-muted hover:text-ink",
+              )}
+            >
+              {QUICK_LABEL[q]}
+              <span
+                className={cn(
+                  "rounded-full px-1 text-[10px]",
+                  quick.has(q) ? "bg-data/20" : "bg-surface-2",
+                )}
+              >
+                {quickCount[q]}
+              </span>
+            </button>
+          ))}
+
+          <span className="bg-line mx-1 h-4 w-px" />
+
+          <select
+            value={filters.priority ?? ""}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                priority: e.target.value || null,
+              }))
+            }
+            className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
+          >
+            <option value="">Prioridade</option>
+            {TASK_PRIORITY.map((p) => (
+              <option key={p} value={p}>
+                {PRIO_LABEL[p]}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.status ?? ""}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, status: e.target.value || null }))
+            }
+            className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
+          >
+            <option value="">Coluna</option>
+            {cols.map((c) => (
+              <option key={c.id} value={c.name}>
+                {colLabel(c.name)}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.clientId ?? ""}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, clientId: e.target.value || null }))
+            }
+            className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
+          >
+            <option value="">Cliente</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.period}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                period: e.target.value as Filters["period"],
+              }))
+            }
+            className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
+          >
+            <option value="all">Período: todos</option>
+            <option value="week">Vence em 7 dias</option>
+            <option value="month">Este mês</option>
+            <option value="none">Sem prazo</option>
+          </select>
+
+          {filtersActive && (
+            <button
+              type="button"
+              onClick={() => {
+                clearFilters();
+                toast.message("Filtros removidos");
+              }}
+              className="text-data-text hover:underline"
+            >
+              Limpar
+            </button>
+          )}
+
+          <span className="text-ink-muted ml-auto hidden lg:inline">
+            atalhos: P pendentes · C concluídas · 1–4 prioridade · R/Esc
+            limpa
+          </span>
+        </div>
+      )}
+
       {loadError ? (
         <div className="p-6">
           <div className="border-line bg-surface rounded-2xl border p-6 text-sm">
@@ -914,11 +1195,11 @@ export function TasksBoard({
           </div>
         </div>
       ) : view === "lista" ? (
-        <TasksList tasks={tasks} statuses={cols} onOpenTask={openTask} />
+        <TasksList tasks={filteredTasks} statuses={cols} onOpenTask={openTask} />
       ) : view === "calendario" ? (
-        <TasksCalendar tasks={tasks} statuses={cols} onOpenTask={openTask} />
+        <TasksCalendar tasks={filteredTasks} statuses={cols} onOpenTask={openTask} />
       ) : view === "cronograma" ? (
-        <TasksTimeline tasks={tasks} statuses={cols} onOpenTask={openTask} />
+        <TasksTimeline tasks={filteredTasks} statuses={cols} onOpenTask={openTask} />
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
           {cols.map((col) => {
