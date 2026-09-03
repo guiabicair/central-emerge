@@ -29,29 +29,50 @@ export default async function TarefasPage() {
   const supabase = await createClient();
   const db = await createUntypedClient();
 
-  const [tasksRes, assigneesRes, subtasksRes, profilesRes, clientsRes, canManage] =
-    await Promise.all([
-      db
-        .from("tasks")
-        .select(
-          "id, title, description, briefing, status, priority, client_id, due_date, drive_link, figma_link",
-        )
-        .order("updated_at", { ascending: false }),
-      supabase.from("task_assignees").select("task_id, user_id"),
-      db
-        .from("subtasks")
-        .select("id, parent_task_id, title, status")
-        .order("created_at"),
-      supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .eq("approval_status", "approved"),
-      supabase.from("clients").select("id, name, is_seed").order("name"),
-      can("tarefas.manage"),
-    ]);
+  const [
+    tasksRes,
+    assigneesRes,
+    subtasksRes,
+    statusesRes,
+    profilesRes,
+    clientsRes,
+    canManage,
+  ] = await Promise.all([
+    db
+      .from("tasks")
+      .select(
+        "id, title, description, briefing, status, priority, client_id, due_date, drive_link, figma_link",
+      )
+      .order("updated_at", { ascending: false }),
+    supabase.from("task_assignees").select("task_id, user_id"),
+    db
+      .from("subtasks")
+      .select("id, parent_task_id, title, status")
+      .order("created_at"),
+    supabase
+      .from("task_statuses")
+      .select("id, name, color, position")
+      .order("position"),
+    supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .eq("approval_status", "approved"),
+    supabase.from("clients").select("id, name, is_seed").order("name"),
+    can("tarefas.manage"),
+  ]);
 
   const loadError =
-    tasksRes.error?.message ?? assigneesRes.error?.message ?? null;
+    tasksRes.error?.message ??
+    assigneesRes.error?.message ??
+    statusesRes.error?.message ??
+    null;
+
+  const statuses = (statusesRes.data ?? []).map((s) => ({
+    id: s.id as string,
+    name: s.name as string,
+    color: (s.color as string) ?? "slate",
+    position: (s.position as number) ?? 0,
+  }));
 
   const nameByUser = new Map(
     (profilesRes.data ?? []).map((p) => [p.user_id, p.full_name ?? "—"]),
@@ -116,6 +137,7 @@ export default async function TarefasPage() {
       />
       <TasksBoard
         tasks={tasks}
+        statuses={statuses}
         people={people}
         clients={clients}
         canManage={canManage}

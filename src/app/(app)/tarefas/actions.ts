@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  STATUS_COLORS,
   TASK_PRIORITY,
-  TASK_STATUS,
   type TaskInput,
-  type TaskStatusReal,
 } from "@/app/(app)/tarefas/task-constants";
 import { can } from "@/lib/auth/roles";
 import { getUser } from "@/lib/supabase/auth";
@@ -18,10 +17,17 @@ async function guard() {
   }
 }
 
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+/** Nomes de coluna válidos (task_statuses.name) — a fonte de verdade do 3b. */
+async function statusNames(supabase: Db): Promise<Set<string>> {
+  const { data } = await supabase.from("task_statuses").select("name");
+  return new Set((data ?? []).map((r) => r.name as string));
+}
+
 export async function saveTask(input: TaskInput) {
   await guard();
   if (!input.title.trim()) throw new Error("Título é obrigatório.");
-  if (!TASK_STATUS.includes(input.status)) throw new Error("Status inválido.");
   if (!TASK_PRIORITY.includes(input.priority))
     throw new Error("Prioridade inválida.");
 
@@ -29,6 +35,10 @@ export async function saveTask(input: TaskInput) {
   const supabase = await createClient();
   // briefing (coluna nova da 0011) ainda não está nos tipos gerados
   const db = await createUntypedClient();
+
+  if (!(await statusNames(supabase)).has(input.status)) {
+    throw new Error("Coluna (status) inexistente.");
+  }
 
   const row = {
     title: input.title.trim(),
@@ -90,8 +100,6 @@ export async function saveTask(input: TaskInput) {
   revalidatePath("/tarefas");
 }
 
-type Db = Awaited<ReturnType<typeof createClient>>;
-
 /** Sincroniza as subtarefas do form com a tabela subtasks (add / update / remove). */
 async function reconcileSubtasks(
   supabase: Db,
@@ -150,10 +158,12 @@ async function reconcileSubtasks(
   }
 }
 
-export async function moveTaskStatus(id: string, status: TaskStatusReal) {
+export async function moveTaskStatus(id: string, status: string) {
   await guard();
-  if (!TASK_STATUS.includes(status)) throw new Error("Status inválido.");
   const supabase = await createClient();
+  if (!(await statusNames(supabase)).has(status)) {
+    throw new Error("Coluna (status) inexistente.");
+  }
   const { error } = await supabase
     .from("tasks")
     .update({ status, updated_at: new Date().toISOString() })
@@ -168,5 +178,140 @@ export async function deleteTask(id: string) {
   await supabase.from("task_assignees").delete().eq("task_id", id);
   const { error } = await supabase.from("tasks").delete().eq("id", id);
   if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+/* ------------------------------------------------------------------ *
+ * Colunas do Kanban (task_statuses) — CRUD (3b). tasks.status guarda
+ * o `name`, então renomear/excluir precisa cascatear em tasks.
+ * ------------------------------------------------------------------ */
+
+function cleanName(raw: string) {
+  return raw.trim().replace(/\s+/g, " ").slice(0, 40);
+}
+
+export async function createStatus(name: string, color: string) {
+  await guard();
+  const nome = cleanName(name);
+  if (!nome) throw new Error("Nome da coluna é obrigatório.");
+  if (!STATUS_COLORS.includes(color as (typeof STATUS_COLORS)[number])) {
+    color = "slate";
+  }
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("task_statuses")
+    .select("name, position");
+  if ((rows ?? []).some((r) => r.name.toLowerCase() === nome.toLowerCase())) {
+    throw new Error("Já existe uma coluna com esse nome.");
+  }
+  const nextPos =
+    Math.max(0, ...(rows ?? []).map((r) => r.position ?? 0)) + 1;
+  const { error } = await supabase
+    .from("task_statuses")
+    .insert({ name: nome, color, position: nextPos, is_default: false });
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+export async function renameStatus(id: string, name: string) {
+  await guard();
+  const nome = cleanName(name);
+  if (!nome) throw new Error("Nome da coluna é obrigatório.");
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("task_statuses")
+    .select("id, name");
+  const alvo = (rows ?? []).find((r) => r.id === id);
+  if (!alvo) throw new Error("Coluna não encontrada.");
+  if (alvo.name === nome) return;
+  if (
+    (rows ?? []).some(
+      (r) => r.id !== id && r.name.toLowerCase() === nome.toLowerCase(),
+    )
+  ) {
+    throw new Error("Já existe uma coluna com esse nome.");
+  }
+  const { error } = await supabase
+    .from("task_statuses")
+    .update({ name: nome, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  // cascata: tasks guardam o name
+  await supabase
+    .from("tasks")
+    .update({ status: nome, updated_at: new Date().toISOString() })
+    .eq("status", alvo.name);
+  revalidatePath("/tarefas");
+}
+
+export async function setStatusColor(id: string, color: string) {
+  await guard();
+  if (!STATUS_COLORS.includes(color as (typeof STATUS_COLORS)[number])) {
+    throw new Error("Cor inválida.");
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("task_statuses")
+    .update({ color, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+export async function moveStatus(id: string, dir: "up" | "down") {
+  await guard();
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("task_statuses")
+    .select("id, position")
+    .order("position");
+  const list = rows ?? [];
+  const i = list.findIndex((r) => r.id === id);
+  if (i < 0) throw new Error("Coluna não encontrada.");
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= list.length) return;
+  const a = list[i]!;
+  const b = list[j]!;
+  await supabase
+    .from("task_statuses")
+    .update({ position: b.position, updated_at: new Date().toISOString() })
+    .eq("id", a.id);
+  await supabase
+    .from("task_statuses")
+    .update({ position: a.position, updated_at: new Date().toISOString() })
+    .eq("id", b.id);
+  revalidatePath("/tarefas");
+}
+
+export async function deleteStatus(id: string, reassignToName: string) {
+  await guard();
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("task_statuses")
+    .select("id, name, is_default");
+  const list = rows ?? [];
+  if (list.length <= 1) throw new Error("Precisa haver ao menos uma coluna.");
+  const alvo = list.find((r) => r.id === id);
+  if (!alvo) throw new Error("Coluna não encontrada.");
+
+  const destino = list.find((r) => r.id !== id && r.name === reassignToName);
+  if (!destino) throw new Error("Escolha uma coluna de destino válida.");
+
+  // move as tasks da coluna pra o destino, depois apaga a coluna
+  const { error: upErr } = await supabase
+    .from("tasks")
+    .update({ status: destino.name, updated_at: new Date().toISOString() })
+    .eq("status", alvo.name);
+  if (upErr) throw new Error(upErr.message);
+
+  const { error } = await supabase.from("task_statuses").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+
+  if (alvo.is_default) {
+    await supabase
+      .from("task_statuses")
+      .update({ is_default: true })
+      .eq("id", destino.id);
+  }
   revalidatePath("/tarefas");
 }

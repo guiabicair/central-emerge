@@ -1,21 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Columns3,
+  ExternalLink,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  createStatus,
+  deleteStatus,
   deleteTask,
+  moveStatus,
   moveTaskStatus,
+  renameStatus,
   saveTask,
+  setStatusColor,
 } from "@/app/(app)/tarefas/actions";
 import {
+  STATUS_COLOR_DOT,
+  STATUS_COLORS,
+  STATUS_LABEL,
   TASK_PRIORITY,
-  TASK_STATUS,
+  type StatusCol,
   type SubtaskInput,
   type TaskInput,
   type TaskPriorityReal,
-  type TaskStatusReal,
 } from "@/app/(app)/tarefas/task-constants";
 import { StatusPill, type PillColor } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -75,12 +90,9 @@ function clearDraft(id?: string) {
   }
 }
 
-const COLUMNS: { id: TaskStatusReal; label: string; dot: string }[] = [
-  { id: "pending", label: "Pendente", dot: "var(--warn)" },
-  { id: "in_progress", label: "Em andamento", dot: "var(--wip)" },
-  { id: "completed", label: "Concluída", dot: "var(--done)" },
-  { id: "cancelled", label: "Cancelada", dot: "var(--ink-muted)" },
-];
+const colLabel = (name: string) => STATUS_LABEL[name] ?? name;
+const colDot = (color: string) =>
+  STATUS_COLOR_DOT[color] ?? "var(--ink-muted)";
 
 const PRIORITY: Record<
   TaskPriorityReal,
@@ -111,11 +123,13 @@ const inputCls =
 
 function TaskForm({
   initial,
+  statuses,
   people,
   clients,
   onClose,
 }: {
   initial: TaskInput;
+  statuses: StatusCol[];
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
   onClose: () => void;
@@ -243,12 +257,12 @@ function TaskForm({
             </span>
             <select
               value={form.status}
-              onChange={(e) => set("status", e.target.value as TaskStatusReal)}
+              onChange={(e) => set("status", e.target.value)}
               className={`mt-1 ${inputCls}`}
             >
-              {COLUMNS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
+              {statuses.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {colLabel(c.name)}
                 </option>
               ))}
             </select>
@@ -469,11 +483,13 @@ function DeleteDialog({
 
 function Card({
   task,
+  statuses,
   canManage,
   onEdit,
   onDelete,
 }: {
   task: TaskRow;
+  statuses: StatusCol[];
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -563,22 +579,20 @@ function Card({
         <select
           value={task.status}
           onChange={(e) => {
-            const status = e.target.value as TaskStatusReal;
+            const status = e.target.value;
             start(async () => {
               try {
                 await moveTaskStatus(task.id, status);
               } catch (err) {
-                toast.error(
-                  actionError(err, "Falhou ao mover"),
-                );
+                toast.error(actionError(err, "Falhou ao mover"));
               }
             });
           }}
           className="border-line-strong text-ink-muted mt-2 h-7 w-full rounded-md border bg-transparent px-1.5 text-[11px] outline-none"
         >
-          {COLUMNS.map((c) => (
-            <option key={c.id} value={c.id}>
-              Mover → {c.label}
+          {statuses.map((c) => (
+            <option key={c.id} value={c.name}>
+              Mover → {colLabel(c.name)}
             </option>
           ))}
         </select>
@@ -587,14 +601,196 @@ function Card({
   );
 }
 
+function ColumnManager({
+  cols,
+  onClose,
+}: {
+  cols: StatusCol[];
+  onClose: () => void;
+}) {
+  const [, start] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [names, setNames] = useState<Record<string, string>>(
+    () => Object.fromEntries(cols.map((c) => [c.id, c.name])),
+  );
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [dest, setDest] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState<string>("slate");
+
+  const run = (key: string, fn: () => Promise<unknown>) => {
+    setBusy(key);
+    start(async () => {
+      try {
+        await fn();
+      } catch (e) {
+        toast.error(actionError(e, "Falhou"));
+      } finally {
+        setBusy(null);
+      }
+    });
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <SheetHeader className="border-line border-b p-5 pr-12">
+        <SheetTitle className="text-base font-semibold">
+          Colunas do Kanban
+        </SheetTitle>
+      </SheetHeader>
+
+      <div className="flex-1 space-y-2 overflow-y-auto p-5">
+        {cols.map((c, i) => (
+          <div key={c.id} className="border-line rounded-lg border p-2.5">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: colDot(c.color) }}
+              />
+              <input
+                value={names[c.id] ?? c.name}
+                onChange={(e) =>
+                  setNames((n) => ({ ...n, [c.id]: e.target.value }))
+                }
+                onBlur={() => {
+                  const v = (names[c.id] ?? "").trim();
+                  if (v && v !== c.name) run(`name:${c.id}`, () => renameStatus(c.id, v));
+                }}
+                className="border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none"
+              />
+              <select
+                value={c.color}
+                onChange={(e) =>
+                  run(`color:${c.id}`, () => setStatusColor(c.id, e.target.value))
+                }
+                className="border-line-strong h-8 rounded-md border bg-transparent px-1 text-xs outline-none"
+              >
+                {STATUS_COLORS.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={i === 0 || busy !== null}
+                onClick={() => run(`up:${c.id}`, () => moveStatus(c.id, "up"))}
+              >
+                <ArrowUp className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={i === cols.length - 1 || busy !== null}
+                onClick={() => run(`down:${c.id}`, () => moveStatus(c.id, "down"))}
+              >
+                <ArrowDown className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={cols.length <= 1}
+                onClick={() => {
+                  setDeletingId(deletingId === c.id ? null : c.id);
+                  setDest(cols.find((x) => x.id !== c.id)?.name ?? "");
+                }}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+
+            {deletingId === c.id && (
+              <div className="border-line mt-2 flex items-center gap-2 border-t pt-2 text-[11px]">
+                <span className="text-ink-muted">Mover tarefas para</span>
+                <select
+                  value={dest}
+                  onChange={(e) => setDest(e.target.value)}
+                  className="border-line-strong h-7 flex-1 rounded-md border bg-transparent px-1.5 outline-none"
+                >
+                  {cols
+                    .filter((x) => x.id !== c.id)
+                    .map((x) => (
+                      <option key={x.id} value={x.name}>
+                        {colLabel(x.name)}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  variant="destructive"
+                  size="xs"
+                  disabled={busy !== null || !dest}
+                  onClick={() =>
+                    run(`del:${c.id}`, async () => {
+                      await deleteStatus(c.id, dest);
+                      setDeletingId(null);
+                    })
+                  }
+                >
+                  Excluir
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        <div className="border-line mt-3 rounded-lg border border-dashed p-2.5">
+          <span className="text-ink-muted text-[11px] font-semibold uppercase">
+            Nova coluna
+          </span>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ex: Bloqueado"
+              className="border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none"
+            />
+            <select
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+              className="border-line-strong h-8 rounded-md border bg-transparent px-1 text-xs outline-none"
+            >
+              {STATUS_COLORS.map((col) => (
+                <option key={col} value={col}>
+                  {col}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              disabled={busy !== null || !newName.trim()}
+              onClick={() =>
+                run("create", async () => {
+                  await createStatus(newName, newColor);
+                  setNewName("");
+                })
+              }
+            >
+              Criar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-line flex justify-end border-t p-4">
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Fechar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TasksBoard({
   tasks,
+  statuses,
   people,
   clients,
   canManage,
   loadError,
 }: {
   tasks: TaskRow[];
+  statuses: StatusCol[];
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
   canManage: boolean;
@@ -602,22 +798,27 @@ export function TasksBoard({
 }) {
   const [editing, setEditing] = useState<TaskInput | null>(null);
   const [deleting, setDeleting] = useState<TaskRow | null>(null);
+  const [manageCols, setManageCols] = useState(false);
+
+  const cols = useMemo(
+    () => [...statuses].sort((a, b) => a.position - b.position),
+    [statuses],
+  );
+  const fallbackCol = cols[0]?.name ?? "pending";
 
   const byColumn = useMemo(() => {
     const map = new Map<string, TaskRow[]>();
-    for (const c of COLUMNS) map.set(c.id, []);
-    for (const t of tasks) (map.get(t.status) ?? map.get("pending"))!.push(t);
+    for (const c of cols) map.set(c.name, []);
+    for (const t of tasks) (map.get(t.status) ?? map.get(fallbackCol))?.push(t);
     return map;
-  }, [tasks]);
+  }, [tasks, cols, fallbackCol]);
 
   const toInput = (t: TaskRow): TaskInput => ({
     id: t.id,
     title: t.title,
     description: t.description ?? "",
     briefing: t.briefing ?? "",
-    status: (TASK_STATUS as readonly string[]).includes(t.status)
-      ? (t.status as TaskStatusReal)
-      : "pending",
+    status: cols.some((c) => c.name === t.status) ? t.status : fallbackCol,
     priority: (TASK_PRIORITY as readonly string[]).includes(t.priority)
       ? (t.priority as TaskPriorityReal)
       : "medium",
@@ -637,13 +838,26 @@ export function TasksBoard({
     <>
       <div className="border-line flex items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
         <span className="text-ink-muted text-xs">
-          {tasks.length} tarefas · tabela <code>tasks</code>
+          {tasks.length} tarefas · {cols.length} colunas
         </span>
         {canManage && (
-          <Button size="sm" onClick={() => setEditing(BLANK)}>
-            <Plus className="size-4" />
-            Nova tarefa
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setManageCols(true)}
+            >
+              <Columns3 className="size-4" />
+              Colunas
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setEditing({ ...BLANK, status: fallbackCol })}
+            >
+              <Plus className="size-4" />
+              Nova tarefa
+            </Button>
+          </div>
         )}
       </div>
 
@@ -660,8 +874,8 @@ export function TasksBoard({
         </div>
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
-          {COLUMNS.map((col) => {
-            const items = byColumn.get(col.id) ?? [];
+          {cols.map((col) => {
+            const items = byColumn.get(col.name) ?? [];
             return (
               <section
                 key={col.id}
@@ -670,9 +884,9 @@ export function TasksBoard({
                 <header className="mb-3 flex items-center gap-2 px-1">
                   <span
                     className="size-2 rounded-full"
-                    style={{ backgroundColor: col.dot }}
+                    style={{ backgroundColor: colDot(col.color) }}
                   />
-                  <h3 className="text-sm font-semibold">{col.label}</h3>
+                  <h3 className="text-sm font-semibold">{colLabel(col.name)}</h3>
                   <span className="bg-surface-2 text-ink-muted rounded-full px-1.5 text-[11px] font-medium">
                     {items.length}
                   </span>
@@ -682,6 +896,7 @@ export function TasksBoard({
                     <Card
                       key={task.id}
                       task={task}
+                      statuses={cols}
                       canManage={canManage}
                       onEdit={() => setEditing(toInput(task))}
                       onDelete={() => setDeleting(task)}
@@ -705,11 +920,18 @@ export function TasksBoard({
             <TaskForm
               key={editing.id ?? "new"}
               initial={editing}
+              statuses={cols}
               people={people}
               clients={clients}
               onClose={() => setEditing(null)}
             />
           )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={manageCols} onOpenChange={setManageCols}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-[420px]">
+          <ColumnManager cols={cols} onClose={() => setManageCols(false)} />
         </SheetContent>
       </Sheet>
 
