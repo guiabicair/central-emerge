@@ -21,7 +21,7 @@ export default async function TarefasPage() {
         .from("profiles")
         .select("user_id, full_name")
         .eq("approval_status", "approved"),
-      supabase.from("clients").select("id, name"),
+      supabase.from("clients").select("id, name, is_seed").order("name"),
       can("tarefas.manage"),
     ]);
 
@@ -31,6 +31,8 @@ export default async function TarefasPage() {
   const nameByUser = new Map(
     (profilesRes.data ?? []).map((p) => [p.user_id, p.full_name ?? "—"]),
   );
+  // resolução de nome cobre TODOS os client_id (inclusive linhas de teste
+  // legadas que alguma task antiga possa referenciar)
   const nameByClient = new Map(
     (clientsRes.data ?? []).map((c) => [c.id, c.name]),
   );
@@ -60,10 +62,10 @@ export default async function TarefasPage() {
     id: p.user_id,
     name: p.full_name ?? "—",
   }));
-  const clients = (clientsRes.data ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-  }));
+  // dropdown do form: só os clientes reais/curados (mesma lista da /clientes)
+  const clients = (clientsRes.data ?? [])
+    .filter((c) => c.is_seed)
+    .map((c) => ({ id: c.id, name: c.name }));
 
   return (
     <>

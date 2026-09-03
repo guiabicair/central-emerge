@@ -52,6 +52,8 @@ interface EntityCanvasProps {
   onOpenEntity?: (id: string) => void;
 }
 
+const NO_DERIVED: DerivedEdge[] = [];
+
 const MANUAL_STYLE = { stroke: "var(--data)", strokeWidth: 1.6 } as const;
 const DERIVED_STYLE = {
   stroke: "color-mix(in oklab, var(--ink) 22%, transparent)",
@@ -65,7 +67,7 @@ export function EntityCanvas({
   nodes: entityNodes,
   fallbackLayout,
   snapshot,
-  derivedEdges = [],
+  derivedEdges = NO_DERIVED,
   onOpenEntity,
 }: EntityCanvasProps) {
   const { persistMove, addEdge, removeEdge } = useCanvasPersistence(
@@ -80,6 +82,10 @@ export function EntityCanvas({
   const manualIds = useRef<Set<string>>(new Set());
   // posições que o usuário já arrastou nesta sessão (não sobrescrever no rebuild)
   const draggedPos = useRef<Record<string, { x: number; y: number }>>({});
+  // callback de abrir — via ref pra não recriar o effect (evita loop de render)
+  const onOpenRef = useRef(onOpenEntity);
+  onOpenRef.current = onOpenEntity;
+  const openStable = useRef((id: string) => onOpenRef.current?.(id)).current;
 
   const nodeIndex = useMemo(
     () => new Set(entityNodes.map((n) => n.id)),
@@ -95,10 +101,10 @@ export function EntityCanvas({
           draggedPos.current[n.id] ??
           snapshot.positions[n.id] ??
           fallbackLayout[n.id] ?? { x: 0, y: 0 },
-        data: { body: n.body, onOpen: onOpenEntity },
+        data: { body: n.body, onOpen: openStable },
       })),
     );
-  }, [entityNodes, snapshot.positions, fallbackLayout, onOpenEntity, setRfNodes]);
+  }, [entityNodes, snapshot.positions, fallbackLayout, openStable, setRfNodes]);
 
   useEffect(() => {
     manualIds.current = new Set(snapshot.edges.map((e) => e.id));
