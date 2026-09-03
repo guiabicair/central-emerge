@@ -157,7 +157,7 @@ export default async function TarefasPage() {
         description={
           loadError
             ? "Erro ao carregar — rode a migration 0007"
-            : `${tasks.length} tarefas · dados existentes`
+            : `${tasks.filter((t) => !t.archived).length} tarefas`
         }
       />
       <TasksBoard

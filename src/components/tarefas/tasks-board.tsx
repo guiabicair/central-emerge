@@ -1148,8 +1148,8 @@ export function TasksBoard({
           </div>
           <span className="text-ink-muted text-xs">
             {filtersActive
-              ? `${filteredTasks.length} de ${tasks.length}`
-              : `${tasks.length} tarefas · ${cols.length} colunas`}
+              ? `${filteredTasks.length} de ${visibleTasks.length}`
+              : `${visibleTasks.length} tarefas · ${cols.length} colunas`}
           </span>
         </div>
         {canManage && (
