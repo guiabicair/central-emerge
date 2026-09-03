@@ -19,6 +19,7 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 
+import { DeletableEdge } from "@/components/canvas/deletable-edge";
 import { EntityNode } from "@/components/canvas/entity-node";
 import { useCanvasPersistence } from "@/lib/canvas/use-canvas-persistence";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
@@ -26,6 +27,7 @@ import type { CanvasSnapshot } from "@/lib/canvas/types";
 import "@xyflow/react/dist/style.css";
 
 const nodeTypes = { entity: EntityNode };
+const edgeTypes = { deletable: DeletableEdge };
 
 export interface CanvasEntityNode {
   id: string;
@@ -87,6 +89,17 @@ export function EntityCanvas({
   onOpenRef.current = onOpenEntity;
   const openStable = useRef((id: string) => onOpenRef.current?.(id)).current;
 
+  const handleDeleteEdge = useCallback(
+    (id: string) => {
+      setRfEdges((eds) => eds.filter((e) => e.id !== id));
+      if (manualIds.current.has(id)) {
+        manualIds.current.delete(id);
+        void removeEdge(id);
+      }
+    },
+    [setRfEdges, removeEdge],
+  );
+
   const nodeIndex = useMemo(
     () => new Set(entityNodes.map((n) => n.id)),
     [entityNodes],
@@ -114,10 +127,11 @@ export function EntityCanvas({
         id: e.id,
         source: e.source,
         target: e.target,
-        type: "smoothstep",
+        type: "deletable",
         label: e.label ?? undefined,
         style: MANUAL_STYLE,
         markerEnd: { type: MarkerType.ArrowClosed, color: "var(--data)" },
+        data: { onDelete: handleDeleteEdge },
       }));
     const derived: Edge[] = derivedEdges
       .filter((e) => nodeIndex.has(e.source) && nodeIndex.has(e.target))
@@ -131,7 +145,7 @@ export function EntityCanvas({
         style: DERIVED_STYLE,
       }));
     setRfEdges([...derived, ...manual]);
-  }, [snapshot.edges, derivedEdges, nodeIndex, setRfEdges]);
+  }, [snapshot.edges, derivedEdges, nodeIndex, setRfEdges, handleDeleteEdge]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -178,13 +192,14 @@ export function EntityCanvas({
           id,
           source,
           target,
-          type: "smoothstep",
+          type: "deletable",
           style: MANUAL_STYLE,
           markerEnd: { type: MarkerType.ArrowClosed, color: "var(--data)" },
+          data: { onDelete: handleDeleteEdge },
         },
       ]);
     },
-    [rfEdges, addEdge, setRfEdges],
+    [rfEdges, addEdge, setRfEdges, handleDeleteEdge],
   );
 
   return (
@@ -193,6 +208,7 @@ export function EntityCanvas({
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
@@ -224,9 +240,9 @@ export function EntityCanvas({
             className="!m-3 max-w-[240px] rounded-lg border border-white/10 bg-[#0f1112]/90 px-3 py-2 text-[11px] text-[#8b918f]"
           >
             Arraste os cards livremente (a posição salva). Puxe de um card a
-            outro pra conectar. Selecione uma conexão e tecle{" "}
-            <kbd className="text-[#eef1f0]">Delete</kbd> pra remover. As linhas
-            tracejadas são automáticas.
+            outro pra conectar. Clique no{" "}
+            <span className="text-[#eef1f0]">×</span> no meio de uma conexão pra
+            removê-la. As linhas tracejadas são automáticas.
           </Panel>
         )}
       </ReactFlow>
