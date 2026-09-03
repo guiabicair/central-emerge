@@ -44,18 +44,31 @@ function parseMonth(m: string | undefined): Date {
   return startOfMonth(new Date());
 }
 
-function timeOf(iso: string): string | null {
-  const d = new Date(iso);
-  if (d.getHours() === 0 && d.getMinutes() === 0) return null;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes(),
-  ).padStart(2, "0")}`;
+// Os timestamps do banco são timestamptz e o runtime da Vercel é UTC.
+// A operação da Emerge é no fuso de São Paulo — e os due_date da Central
+// antiga foram gravados como "fim do dia BRT" (23:59 local = 02:59Z do dia
+// seguinte). Tudo que é dia/hora exibido precisa ser convertido pra BRT.
+const BRT_TZ = "America/Sao_Paulo";
+const brtFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BRT_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+function brt(iso: string): { day: string; hm: string } {
+  const p = Object.fromEntries(
+    brtFmt.formatToParts(new Date(iso)).map((x) => [x.type, x.value]),
+  ) as Record<string, string>;
+  const hour = p.hour === "24" ? "00" : p.hour;
+  return { day: `${p.year}-${p.month}-${p.day}`, hm: `${hour}:${p.minute}` };
 }
 
 function monthOf(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return brt(iso).day.slice(0, 7);
 }
 
 export default async function CalendarioPage({
@@ -69,10 +82,15 @@ export default async function CalendarioPage({
 
   const weeks = monthMatrix(monthStart);
   const gridDays = weeks.flat();
-  const gridEndExclusive = new Date(gridDays.at(-1)!);
-  gridEndExclusive.setDate(gridEndExclusive.getDate() + 1);
-  const isoStart = ymd(gridDays[0]!);
-  const isoEnd = ymd(gridEndExclusive);
+  const gridDaySet = new Set(gridDays.map((d) => ymd(d)));
+  // janela de busca com folga de 1 dia de cada lado: BRT é UTC-3, então um
+  // item do último dia visível pode estar gravado até 02:59Z do dia seguinte.
+  const winStart = new Date(gridDays[0]!);
+  winStart.setDate(winStart.getDate() - 1);
+  const winEnd = new Date(gridDays.at(-1)!);
+  winEnd.setDate(winEnd.getDate() + 2);
+  const isoStart = ymd(winStart);
+  const isoEnd = ymd(winEnd);
 
   const supabase = await createClient();
   const [canView, canTasks] = await Promise.all([
@@ -122,6 +140,7 @@ export default async function CalendarioPage({
 
   const byDay: Record<string, DayItem[]> = {};
   const push = (key: string, item: DayItem) => {
+    if (!gridDaySet.has(key)) return; // item que caiu fora da grade visível
     (byDay[key] ??= []).push(item);
   };
 
@@ -134,11 +153,12 @@ export default async function CalendarioPage({
     color: string | null;
     is_all_day: boolean;
   }[]) {
-    push(ymd(new Date(e.start_date)), {
+    const b = brt(e.start_date);
+    push(b.day, {
       kind: "event",
       id: e.id,
       title: e.title,
-      time: e.is_all_day ? null : timeOf(e.start_date),
+      time: e.is_all_day || b.hm === "00:00" ? null : b.hm,
       color: COLOR_TOKEN[(e.color ?? "").toLowerCase()] ?? "var(--data)",
       meta: EVENT_TYPE_LABEL[e.event_type] ?? e.event_type,
       href: e.task_id ? "/tarefas" : null,
@@ -153,11 +173,12 @@ export default async function CalendarioPage({
     due_date: string;
   }[]) {
     const done = t.status === "completed" || t.status === "cancelled";
-    push(ymd(new Date(t.due_date)), {
+    // due_date é um prazo (fim do dia), não um horário marcado — sem hora.
+    push(brt(t.due_date).day, {
       kind: "task",
       id: t.id,
       title: t.title,
-      time: timeOf(t.due_date),
+      time: null,
       color: done ? "var(--ink-muted)" : "var(--action)",
       meta: done ? "prazo · encerrada" : "prazo",
       href: "/tarefas",
