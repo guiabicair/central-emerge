@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
@@ -608,6 +609,7 @@ function ColumnManager({
   cols: StatusCol[];
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [, start] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [names, setNames] = useState<Record<string, string>>(
@@ -623,6 +625,7 @@ function ColumnManager({
     start(async () => {
       try {
         await fn();
+        router.refresh(); // o painel fica aberto — puxa o board novo na hora
       } catch (e) {
         toast.error(actionError(e, "Falhou"));
       } finally {
