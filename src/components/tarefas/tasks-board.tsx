@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Columns3,
   ExternalLink,
+  FileStack,
   KanbanSquare,
   List,
   Pencil,
@@ -33,6 +34,11 @@ import {
   setStatusColor,
 } from "@/app/(app)/tarefas/actions";
 import {
+  createTaskFromTemplate,
+  createTemplate,
+  deleteTemplate,
+} from "@/app/(app)/tarefas/detail-actions";
+import {
   STATUS_COLORS,
   TASK_PRIORITY,
   colDot,
@@ -42,6 +48,7 @@ import {
   type TaskInput,
   type TaskPriorityReal,
 } from "@/app/(app)/tarefas/task-constants";
+import { TaskDetailSections } from "@/components/tarefas/task-detail-sections";
 import { TasksCalendar } from "@/components/tarefas/tasks-calendar";
 import { TasksList } from "@/components/tarefas/tasks-list";
 import { TasksTimeline } from "@/components/tarefas/tasks-timeline";
@@ -72,6 +79,34 @@ export interface TaskRow {
   assigneeNames: string[];
   subtasks: { id: string; title: string; done: boolean }[];
   archived: boolean;
+  comments: {
+    id: string;
+    author: string;
+    isMine: boolean;
+    content: string;
+    at: string;
+  }[];
+  deliveries: {
+    id: string;
+    driveUrl: string | null;
+    description: string | null;
+    status: string;
+    submittedBy: string;
+    submittedAt: string;
+    reviewedBy: string | null;
+    reviewedAt: string | null;
+    feedback: string | null;
+  }[];
+  loggedSeconds: number;
+  activeTimer: { id: string; startTime: string } | null;
+}
+
+export interface TaskTemplate {
+  id: string;
+  title: string;
+  description: string | null;
+  estimatedHours: number | null;
+  priority: string;
 }
 
 const DRAFT_PREFIX = "emerge:task-draft:";
@@ -143,12 +178,14 @@ const inputCls =
 
 function TaskForm({
   initial,
+  detail,
   statuses,
   people,
   clients,
   onClose,
 }: {
   initial: TaskInput;
+  detail: TaskRow | null;
   statuses: StatusCol[];
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
@@ -443,6 +480,8 @@ function TaskForm({
             ))}
           </div>
         </div>
+
+        {detail && <TaskDetailSections task={detail} />}
       </div>
 
       <div className="border-line flex justify-end gap-2 border-t p-4">
@@ -657,6 +696,164 @@ function Card({
           ))}
         </select>
       )}
+    </div>
+  );
+}
+
+function TemplateManager({
+  templates,
+  targetCol,
+  onClose,
+}: {
+  templates: TaskTemplate[];
+  targetCol: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [, start] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
+  const [hours, setHours] = useState("");
+  const [prio, setPrio] = useState("medium");
+
+  const run = (key: string, fn: () => Promise<unknown>, after?: () => void) => {
+    setBusy(key);
+    start(async () => {
+      try {
+        await fn();
+        router.refresh();
+        after?.();
+      } catch (e) {
+        toast.error(actionError(e, "Falhou"));
+      } finally {
+        setBusy(null);
+      }
+    });
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <SheetHeader className="border-line border-b p-5 pr-12">
+        <SheetTitle className="text-base font-semibold">
+          Templates de tarefa
+        </SheetTitle>
+      </SheetHeader>
+
+      <div className="flex-1 space-y-2 overflow-y-auto p-5">
+        {templates.length === 0 && (
+          <p className="text-ink-muted text-xs">Nenhum template ainda.</p>
+        )}
+        {templates.map((t) => (
+          <div key={t.id} className="border-line rounded-lg border p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{t.title}</span>
+              <span className="text-ink-muted text-[11px]">
+                {PRIO_LABEL[t.priority] ?? t.priority}
+                {t.estimatedHours ? ` · ${t.estimatedHours}h` : ""}
+              </span>
+            </div>
+            {t.description && (
+              <p className="text-ink-muted mt-1 text-xs">{t.description}</p>
+            )}
+            <div className="mt-2 flex gap-1.5">
+              <Button
+                size="xs"
+                disabled={busy !== null}
+                onClick={() =>
+                  run(
+                    `use:${t.id}`,
+                    () => createTaskFromTemplate(t.id, targetCol),
+                    () => toast.success(`Tarefa criada de "${t.title}"`),
+                  )
+                }
+              >
+                Usar
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={busy !== null}
+                onClick={() =>
+                  run(`del:${t.id}`, () => deleteTemplate(t.id))
+                }
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+
+        <div className="border-line mt-3 space-y-2 rounded-lg border border-dashed p-2.5">
+          <span className="text-ink-muted text-[11px] font-semibold uppercase">
+            Novo template
+          </span>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Título"
+            className="border-line-strong focus:border-data h-8 w-full rounded-md border bg-transparent px-2 text-sm outline-none"
+          />
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            rows={2}
+            placeholder="Descrição (opcional)"
+            className="border-line-strong focus:border-data w-full rounded-md border bg-transparent px-2 py-1.5 text-sm outline-none"
+          />
+          <div className="flex gap-2">
+            <input
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              inputMode="numeric"
+              placeholder="Horas est."
+              className="border-line-strong h-8 w-24 rounded-md border bg-transparent px-2 text-sm outline-none"
+            />
+            <select
+              value={prio}
+              onChange={(e) => setPrio(e.target.value)}
+              className="border-line-strong h-8 flex-1 rounded-md border bg-transparent px-1.5 text-sm outline-none"
+            >
+              {TASK_PRIORITY.map((p) => (
+                <option key={p} value={p}>
+                  {PRIO_LABEL[p]}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              disabled={busy !== null || !title.trim()}
+              onClick={() =>
+                run(
+                  "create",
+                  () =>
+                    createTemplate({
+                      title,
+                      description: desc,
+                      estimatedHours: hours.trim()
+                        ? Math.max(0, Math.round(Number(hours)))
+                        : null,
+                      priority: prio,
+                    }),
+                  () => {
+                    setTitle("");
+                    setDesc("");
+                    setHours("");
+                  },
+                )
+              }
+            >
+              Criar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-line flex justify-end border-t p-4">
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Fechar
+        </Button>
+      </div>
     </div>
   );
 }
@@ -876,6 +1073,7 @@ export function TasksBoard({
   people,
   clients,
   clientFilterOptions,
+  templates,
   currentUserId,
   canManage,
   loadError,
@@ -885,13 +1083,16 @@ export function TasksBoard({
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
   clientFilterOptions: { id: string; name: string }[];
+  templates: TaskTemplate[];
   currentUserId: string | null;
   canManage: boolean;
   loadError: string | null;
 }) {
   const [editing, setEditing] = useState<TaskInput | null>(null);
+  const [editingRow, setEditingRow] = useState<TaskRow | null>(null);
   const [deleting, setDeleting] = useState<TaskRow | null>(null);
   const [manageCols, setManageCols] = useState(false);
+  const [manageTpl, setManageTpl] = useState(false);
   const [view, setView] = useState<BoardView>("kanban");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [quick, setQuick] = useState<Set<Quick>>(() => new Set());
@@ -1119,7 +1320,10 @@ export function TasksBoard({
     })),
   });
 
-  const openTask = (t: TaskRow) => setEditing(toInput(t));
+  const openTask = (t: TaskRow) => {
+    setEditingRow(t);
+    setEditing(toInput(t));
+  };
 
   return (
     <>
@@ -1169,6 +1373,14 @@ export function TasksBoard({
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setManageTpl(true)}
+            >
+              <FileStack className="size-4" />
+              Templates
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setManageCols(true)}
             >
               <Columns3 className="size-4" />
@@ -1176,7 +1388,10 @@ export function TasksBoard({
             </Button>
             <Button
               size="sm"
-              onClick={() => setEditing({ ...BLANK, status: fallbackCol })}
+              onClick={() => {
+                setEditingRow(null);
+                setEditing({ ...BLANK, status: fallbackCol });
+              }}
             >
               <Plus className="size-4" />
               Nova tarefa
@@ -1420,7 +1635,7 @@ export function TasksBoard({
                       selecting={selecting}
                       checked={selected.has(task.id)}
                       onCheck={() => toggleSelected(task.id)}
-                      onEdit={() => setEditing(toInput(task))}
+                      onEdit={() => openTask(task)}
                       onDelete={() => setDeleting(task)}
                     />
                   ))}
@@ -1436,16 +1651,28 @@ export function TasksBoard({
         </div>
       )}
 
-      <Sheet open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+      <Sheet
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditing(null);
+            setEditingRow(null);
+          }
+        }}
+      >
         <SheetContent side="right" className="w-full p-0 sm:max-w-[460px]">
           {editing && (
             <TaskForm
               key={editing.id ?? "new"}
               initial={editing}
+              detail={editingRow}
               statuses={cols}
               people={people}
               clients={clients}
-              onClose={() => setEditing(null)}
+              onClose={() => {
+                setEditing(null);
+                setEditingRow(null);
+              }}
             />
           )}
         </SheetContent>
@@ -1454,6 +1681,16 @@ export function TasksBoard({
       <Sheet open={manageCols} onOpenChange={setManageCols}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-[420px]">
           <ColumnManager cols={cols} onClose={() => setManageCols(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={manageTpl} onOpenChange={setManageTpl}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-[420px]">
+          <TemplateManager
+            templates={templates}
+            targetCol={fallbackCol}
+            onClose={() => setManageTpl(false)}
+          />
         </SheetContent>
       </Sheet>
 
