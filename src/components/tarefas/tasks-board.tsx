@@ -516,10 +516,10 @@ function Card({
             {formatDate(task.dueDate)}
           </span>
         )}
-        {task.subtasks.length > 0 && (
+        {(task.subtasks?.length ?? 0) > 0 && (
           <span className="text-ink-muted text-[11px]">
-            ✓ {task.subtasks.filter((s) => s.done).length}/
-            {task.subtasks.length}
+            ✓ {(task.subtasks ?? []).filter((s) => s.done).length}/
+            {task.subtasks!.length}
           </span>
         )}
       </div>
@@ -626,7 +626,7 @@ export function TasksBoard({
     driveLink: t.driveLink ?? "",
     figmaLink: t.figmaLink ?? "",
     assignees: t.assignees,
-    subtasks: t.subtasks.map((s) => ({
+    subtasks: (t.subtasks ?? []).map((s) => ({
       id: s.id,
       title: s.title,
       done: s.done,
