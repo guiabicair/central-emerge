@@ -829,6 +829,7 @@ export function TasksBoard({
   statuses,
   people,
   clients,
+  clientFilterOptions,
   currentUserId,
   canManage,
   loadError,
@@ -837,6 +838,7 @@ export function TasksBoard({
   statuses: StatusCol[];
   people: { id: string; name: string }[];
   clients: { id: string; name: string }[];
+  clientFilterOptions: { id: string; name: string }[];
   currentUserId: string | null;
   canManage: boolean;
   loadError: string | null;
@@ -1140,7 +1142,7 @@ export function TasksBoard({
             className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
           >
             <option value="">Cliente</option>
-            {clients.map((c) => (
+            {clientFilterOptions.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>

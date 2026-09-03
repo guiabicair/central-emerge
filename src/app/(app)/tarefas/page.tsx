@@ -123,9 +123,19 @@ export default async function TarefasPage() {
     id: p.user_id,
     name: p.full_name ?? "—",
   }));
+  // dropdown do form: só clientes curados (steer de novas atribuições — BUG#7)
   const clients = (clientsRes.data ?? [])
     .filter((c) => c.is_seed)
     .map((c) => ({ id: c.id, name: c.name }));
+  // dropdown do FILTRO: clientes que as tasks realmente usam (inclui legado),
+  // senão o filtro Cliente nunca casa (BUG#12)
+  const clientFilterOptions = [
+    ...new Set(
+      tasks.map((t) => t.clientId).filter((id): id is string => !!id),
+    ),
+  ]
+    .map((id) => ({ id, name: nameByClient.get(id) ?? "Cliente legado" }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -142,6 +152,7 @@ export default async function TarefasPage() {
         statuses={statuses}
         people={people}
         clients={clients}
+        clientFilterOptions={clientFilterOptions}
         currentUserId={user?.id ?? null}
         canManage={canManage}
         loadError={loadError}
