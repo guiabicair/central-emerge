@@ -1,6 +1,7 @@
 import { Topbar } from "@/components/layout/topbar";
 import { PipelineBoard, type LeadRow } from "@/components/pipeline/pipeline-board";
 import { can } from "@/lib/auth/roles";
+import { getCanvasSnapshot } from "@/lib/canvas/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Pipeline · Central Emerge" };
@@ -8,7 +9,7 @@ export const metadata = { title: "Pipeline · Central Emerge" };
 export default async function PipelinePage() {
   const supabase = await createClient();
 
-  const [{ data, error }, canManage] = await Promise.all([
+  const [{ data, error }, canManage, canvas] = await Promise.all([
     supabase
       .from("vendas_leads")
       .select(
@@ -16,6 +17,7 @@ export default async function PipelinePage() {
       )
       .order("atualizado_em", { ascending: false }),
     can("pipeline.manage"),
+    getCanvasSnapshot("pipeline"),
   ]);
 
   const leads = (data ?? []) as LeadRow[];
@@ -34,6 +36,7 @@ export default async function PipelinePage() {
         leads={leads}
         canManage={canManage}
         loadError={error?.message ?? null}
+        canvas={canvas}
       />
     </>
   );

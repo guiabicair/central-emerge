@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { KanbanSquare, Pencil, Plus, Trash2, Workflow } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -23,7 +24,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { CanvasSnapshot } from "@/lib/canvas/types";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
+
+const PipelineCanvas = dynamic(
+  () =>
+    import("@/components/pipeline/pipeline-canvas").then((m) => m.PipelineCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-ink-muted grid h-full place-items-center text-sm">
+        Carregando canvas…
+      </div>
+    ),
+  },
+);
 
 export interface LeadRow {
   id: number;
@@ -382,13 +398,16 @@ export function PipelineBoard({
   leads,
   canManage,
   loadError,
+  canvas,
 }: {
   leads: LeadRow[];
   canManage: boolean;
   loadError: string | null;
+  canvas: CanvasSnapshot;
 }) {
   const [editing, setEditing] = useState<LeadInput | null>(null);
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
+  const [view, setView] = useState<"board" | "canvas">("board");
 
   const byColumn = useMemo(() => {
     const map = new Map<string, LeadRow[]>();
@@ -403,17 +422,33 @@ export function PipelineBoard({
 
   return (
     <>
-      <div className="border-line flex items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
+      <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
         <span className="text-ink-muted text-xs">
           {leads.length} leads · {formatCurrency(totalValor)} estimado ·{" "}
           <span>gerados pelo Radar + manuais</span>
         </span>
-        {canManage && (
-          <Button size="sm" onClick={() => setEditing(BLANK)}>
-            <Plus className="size-4" />
-            Novo lead
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!loadError && (
+            <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
+              <TabsList>
+                <TabsTrigger value="board">
+                  <KanbanSquare className="size-4" />
+                  Board
+                </TabsTrigger>
+                <TabsTrigger value="canvas">
+                  <Workflow className="size-4" />
+                  Canvas
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+          {canManage && (
+            <Button size="sm" onClick={() => setEditing(BLANK)}>
+              <Plus className="size-4" />
+              Novo lead
+            </Button>
+          )}
+        </div>
       </div>
 
       {loadError ? (
@@ -425,6 +460,18 @@ export function PipelineBoard({
               <code>vendas_leads</code>). Detalhe: {loadError}
             </p>
           </div>
+        </div>
+      ) : view === "canvas" ? (
+        <div className="border-line min-h-0 flex-1 border-t">
+          <PipelineCanvas
+            leads={leads}
+            snapshot={canvas}
+            canManage={canManage}
+            onOpenLead={(id) => {
+              const l = leads.find((x) => x.id === id);
+              if (l) setEditing(toInput(l));
+            }}
+          />
         </div>
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
