@@ -120,23 +120,23 @@ function TaskForm({
   clients: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const pristine = JSON.stringify(initial);
   const [form, setForm] = useState<TaskInput>(() => loadDraft(initial));
-  const [hadDraft, setHadDraft] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return !!window.localStorage.getItem(draftKey(initial.id));
-    } catch {
-      return false;
-    }
-  });
+  // só considera "tem rascunho" se o que está salvo difere do estado inicial —
+  // um draft todo-vazio (aberto e fechado sem digitar) não vale aviso
+  const [hadDraft, setHadDraft] = useState(
+    () => JSON.stringify(loadDraft(initial)) !== pristine,
+  );
   const [pending, start] = useTransition();
   const set = <K extends keyof TaskInput>(k: K, v: TaskInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  // rascunho: o form não perde o que foi digitado se fechar/recarregar
+  // rascunho: guarda o que foi digitado; se o form voltou ao estado inicial
+  // (Descartar, ou nada digitado) apaga a chave em vez de gravar lixo
   useEffect(() => {
-    saveDraft(form);
-  }, [form]);
+    if (JSON.stringify(form) === pristine) clearDraft(initial.id);
+    else saveDraft(form);
+  }, [form, pristine, initial.id]);
 
   const toggleAssignee = (id: string) =>
     set(
