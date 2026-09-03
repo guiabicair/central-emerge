@@ -69,6 +69,18 @@ export default async function TarefasPage() {
     statusesRes.error?.message ??
     null;
 
+  // archived é da 0013 — query separada e tolerante (pré-migration = tudo false)
+  const archivedSet = new Set<string>();
+  try {
+    const { data } = await db
+      .from("tasks")
+      .select("id")
+      .eq("archived", true);
+    for (const r of (data ?? []) as { id: string }[]) archivedSet.add(r.id);
+  } catch {
+    /* coluna ainda não existe */
+  }
+
   const statuses = (statusesRes.data ?? []).map((s) => ({
     id: s.id as string,
     name: s.name as string,
@@ -117,6 +129,7 @@ export default async function TarefasPage() {
       (u) => nameByUser.get(u) ?? "—",
     ),
     subtasks: subByTask.get(t.id) ?? [],
+    archived: archivedSet.has(t.id),
   }));
 
   const people = (profilesRes.data ?? []).map((p) => ({

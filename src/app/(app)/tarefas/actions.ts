@@ -182,6 +182,69 @@ export async function deleteTask(id: string) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Ações em lote (3e)
+ * ------------------------------------------------------------------ */
+
+export async function bulkMoveStatus(ids: string[], status: string) {
+  await guard();
+  const clean = [...new Set(ids)].filter(Boolean);
+  if (clean.length === 0) return;
+  const supabase = await createClient();
+  if (!(await statusNames(supabase)).has(status)) {
+    throw new Error("Coluna (status) inexistente.");
+  }
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status, updated_at: new Date().toISOString() })
+    .in("id", clean);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+export async function bulkDelete(ids: string[]) {
+  await guard();
+  const clean = [...new Set(ids)].filter(Boolean);
+  if (clean.length === 0) return;
+  const supabase = await createClient();
+  await supabase.from("task_assignees").delete().in("task_id", clean);
+  await supabase.from("subtasks").delete().in("parent_task_id", clean);
+  const { error } = await supabase.from("tasks").delete().in("id", clean);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+/** Arquiva em lote (archived=true). alsoComplete também move pra "completed". */
+export async function bulkArchive(ids: string[], alsoComplete = false) {
+  await guard();
+  const clean = [...new Set(ids)].filter(Boolean);
+  if (clean.length === 0) return;
+  const supabase = await createClient();
+  const db = await createUntypedClient(); // archived não está nos tipos gerados
+
+  const patch: Record<string, unknown> = {
+    archived: true,
+    updated_at: new Date().toISOString(),
+  };
+  if (alsoComplete && (await statusNames(supabase)).has("completed")) {
+    patch.status = "completed";
+  }
+  const { error } = await db.from("tasks").update(patch).in("id", clean);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+export async function setArchived(id: string, archived: boolean) {
+  await guard();
+  const db = await createUntypedClient();
+  const { error } = await db
+    .from("tasks")
+    .update({ archived, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+/* ------------------------------------------------------------------ *
  * Colunas do Kanban (task_statuses) — CRUD (3b). tasks.status guarda
  * o `name`, então renomear/excluir precisa cascatear em tasks.
  * ------------------------------------------------------------------ */

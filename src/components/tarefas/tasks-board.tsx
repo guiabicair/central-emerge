@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
+  CheckSquare,
   Columns3,
   ExternalLink,
   KanbanSquare,
@@ -18,6 +19,9 @@ import {
 import { toast } from "sonner";
 
 import {
+  bulkArchive,
+  bulkDelete,
+  bulkMoveStatus,
   createStatus,
   deleteStatus,
   deleteTask,
@@ -25,6 +29,7 @@ import {
   moveTaskStatus,
   renameStatus,
   saveTask,
+  setArchived,
   setStatusColor,
 } from "@/app/(app)/tarefas/actions";
 import {
@@ -66,6 +71,7 @@ export interface TaskRow {
   assignees: string[];
   assigneeNames: string[];
   subtasks: { id: string; title: string; done: boolean }[];
+  archived: boolean;
 }
 
 const DRAFT_PREFIX = "emerge:task-draft:";
@@ -499,12 +505,18 @@ function Card({
   task,
   statuses,
   canManage,
+  selecting,
+  checked,
+  onCheck,
   onEdit,
   onDelete,
 }: {
   task: TaskRow;
   statuses: StatusCol[];
   canManage: boolean;
+  selecting: boolean;
+  checked: boolean;
+  onCheck: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -513,20 +525,36 @@ function Card({
     PRIORITY.medium;
 
   return (
-    <div className="border-line bg-surface rounded-xl border p-3">
+    <div
+      className={cn(
+        "border-line bg-surface rounded-xl border p-3",
+        selecting && checked && "border-data ring-data/30 ring-1",
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
-        <button
-          type="button"
-          onClick={canManage ? onEdit : undefined}
-          className="min-w-0 text-left"
-        >
-          <div className="text-sm font-semibold">{task.title}</div>
-          {task.clientName && (
-            <div className="text-ink-muted truncate text-xs">
-              {task.clientName}
-            </div>
+        <div className="flex min-w-0 items-start gap-2">
+          {selecting && (
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={onCheck}
+              className="accent-[var(--data)] mt-0.5"
+              aria-label="Selecionar tarefa"
+            />
           )}
-        </button>
+          <button
+            type="button"
+            onClick={selecting ? onCheck : canManage ? onEdit : undefined}
+            className="min-w-0 text-left"
+          >
+            <div className="text-sm font-semibold">{task.title}</div>
+            {task.clientName && (
+              <div className="text-ink-muted truncate text-xs">
+                {task.clientName}
+              </div>
+            )}
+          </button>
+        </div>
         {canManage && (
           <div className="flex shrink-0 gap-0.5">
             <Button variant="ghost" size="icon-sm" onClick={onEdit}>
@@ -541,6 +569,24 @@ function Card({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusPill color={prio.color}>{prio.label}</StatusPill>
+        {task.archived && (
+          <button
+            type="button"
+            onClick={() =>
+              start(async () => {
+                try {
+                  await setArchived(task.id, false);
+                  toast.success("Desarquivada");
+                } catch (err) {
+                  toast.error(actionError(err, "Falhou ao desarquivar"));
+                }
+              })
+            }
+            className="border-line text-ink-muted hover:text-ink rounded-full border px-1.5 py-0.5 text-[10px]"
+          >
+            arquivada · desarquivar
+          </button>
+        )}
         {task.dueDate && (
           <span className="text-ink-muted text-[11px]">
             {formatDate(task.dueDate)}
@@ -849,6 +895,13 @@ export function TasksBoard({
   const [view, setView] = useState<BoardView>("kanban");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [quick, setQuick] = useState<Set<Quick>>(() => new Set());
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulk, setBulk] = useState<
+    "concluir" | "excluir" | "arquivar" | "concluir-arquivar" | null
+  >(null);
+  const [bulkPending, startBulk] = useTransition();
+  const [showArchived, setShowArchived] = useState(false);
 
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
@@ -870,19 +923,30 @@ export function TasksBoard({
     filters.period !== "all" ||
     quick.size > 0;
 
+  // tarefas visíveis por padrão: as não-arquivadas (ou tudo com o toggle)
+  const visibleTasks = useMemo(
+    () => (showArchived ? tasks : tasks.filter((t) => !t.archived)),
+    [tasks, showArchived],
+  );
+  const archivedCount = useMemo(
+    () => tasks.filter((t) => t.archived).length,
+    [tasks],
+  );
+
   const quickCount = useMemo(() => {
+    const base = tasks.filter((t) => !t.archived);
     const isOverdue = (t: TaskRow) =>
       !!t.dueDate &&
       brtParts(t.dueDate).day < todayIso &&
       !DONE_NAMES.has(t.status);
     return {
       minhas: currentUserId
-        ? tasks.filter((t) => t.assignees.includes(currentUserId)).length
+        ? base.filter((t) => t.assignees.includes(currentUserId)).length
         : 0,
-      hoje: tasks.filter(
+      hoje: base.filter(
         (t) => t.dueDate && brtParts(t.dueDate).day === todayIso,
       ).length,
-      atrasadas: tasks.filter(isOverdue).length,
+      atrasadas: base.filter(isOverdue).length,
     };
   }, [tasks, currentUserId, todayIso]);
 
@@ -893,7 +957,7 @@ export function TasksBoard({
       const dt = new Date(y, m - 1, d + 7);
       return brtParts(dt.toISOString()).day;
     })();
-    return tasks.filter((t) => {
+    return visibleTasks.filter((t) => {
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.status && t.status !== filters.status) return false;
       if (filters.clientId && t.clientId !== filters.clientId) return false;
@@ -926,12 +990,37 @@ export function TasksBoard({
         return false;
       return true;
     });
-  }, [tasks, filters, quick, currentUserId, todayIso]);
+  }, [visibleTasks, filters, quick, currentUserId, todayIso]);
 
   const clearFilters = () => {
     setFilters(NO_FILTERS);
     setQuick(new Set());
   };
+
+  const clearSelection = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  const toggleSelected = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const completedName = colName("completed") ?? cols.at(-1)?.name ?? fallbackCol;
+
+  const runBulk = (fn: () => Promise<unknown>, msg: string) =>
+    startBulk(async () => {
+      try {
+        await fn();
+        toast.success(msg);
+        clearSelection();
+        setBulk(null);
+      } catch (e) {
+        toast.error(actionError(e, "Falhou a ação em lote"));
+      }
+    });
   const toggleQuick = (q: Quick) =>
     setQuick((s) => {
       const n = new Set(s);
@@ -957,7 +1046,18 @@ export function TasksBoard({
         return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      if (k === "escape" || k === "r") {
+      if (k === "escape") {
+        if (selected.size || selecting) {
+          clearSelection();
+          return;
+        }
+        if (filtersActive) {
+          clearFilters();
+          toast.message("Filtros removidos");
+        }
+        return;
+      }
+      if (k === "r") {
         if (filtersActive) {
           clearFilters();
           toast.message("Filtros removidos");
@@ -988,7 +1088,7 @@ export function TasksBoard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersActive, cols, fallbackCol]);
+  }, [filtersActive, cols, fallbackCol, selecting, selected]);
 
   const byColumn = useMemo(() => {
     const map = new Map<string, TaskRow[]>();
@@ -1054,6 +1154,18 @@ export function TasksBoard({
         </div>
         {canManage && (
           <div className="flex items-center gap-2">
+            {view === "kanban" && (
+              <Button
+                variant={selecting ? "default" : "outline"}
+                size="sm"
+                onClick={() =>
+                  selecting ? clearSelection() : setSelecting(true)
+                }
+              >
+                <CheckSquare className="size-4" />
+                {selecting ? "Sair da seleção" : "Selecionar"}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -1072,6 +1184,67 @@ export function TasksBoard({
           </div>
         )}
       </div>
+
+      {selecting && (
+        <div className="border-line bg-data/8 flex flex-wrap items-center gap-2 border-b px-4 py-2 text-xs md:px-6">
+          <span className="font-medium">
+            {selected.size} selecionada{selected.size === 1 ? "" : "s"}
+          </span>
+          <button
+            type="button"
+            className="text-ink-muted hover:text-ink"
+            onClick={() => {
+              const ids = filteredTasks.map((t) => t.id);
+              setSelected(
+                selected.size === ids.length ? new Set() : new Set(ids),
+              );
+            }}
+          >
+            {selected.size === filteredTasks.length && filteredTasks.length
+              ? "limpar"
+              : "selecionar todas"}
+          </button>
+          <span className="bg-line mx-1 h-4 w-px" />
+          <Button
+            size="xs"
+            disabled={selected.size === 0 || bulkPending}
+            onClick={() => setBulk("concluir")}
+          >
+            Concluir
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={selected.size === 0 || bulkPending}
+            onClick={() => setBulk("arquivar")}
+          >
+            Arquivar
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={selected.size === 0 || bulkPending}
+            onClick={() => setBulk("concluir-arquivar")}
+          >
+            Concluir + arquivar
+          </Button>
+          <Button
+            size="xs"
+            variant="destructive"
+            disabled={selected.size === 0 || bulkPending}
+            onClick={() => setBulk("excluir")}
+          >
+            Excluir
+          </Button>
+          <button
+            type="button"
+            className="text-data-text hover:underline"
+            onClick={clearSelection}
+          >
+            Sair
+          </button>
+        </div>
+      )}
 
       {!loadError && (
         <div className="border-line flex flex-wrap items-center gap-2 border-b px-4 py-2 text-xs md:px-6">
@@ -1178,6 +1351,22 @@ export function TasksBoard({
             </button>
           )}
 
+          {archivedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5",
+                showArchived
+                  ? "border-data/40 bg-data/12 text-data-text"
+                  : "border-line text-ink-muted hover:text-ink",
+              )}
+            >
+              {showArchived ? "Ocultar arquivadas" : "Ver arquivadas"} (
+              {archivedCount})
+            </button>
+          )}
+
           <span className="text-ink-muted ml-auto hidden lg:inline">
             atalhos: P pendentes · C concluídas · 1–4 prioridade · R/Esc
             limpa
@@ -1228,6 +1417,9 @@ export function TasksBoard({
                       task={task}
                       statuses={cols}
                       canManage={canManage}
+                      selecting={selecting}
+                      checked={selected.has(task.id)}
+                      onCheck={() => toggleSelected(task.id)}
                       onEdit={() => setEditing(toInput(task))}
                       onDelete={() => setDeleting(task)}
                     />
@@ -1268,6 +1460,77 @@ export function TasksBoard({
       {deleting && (
         <DeleteDialog task={deleting} onClose={() => setDeleting(null)} />
       )}
+
+      {bulk &&
+        (() => {
+          const n = selected.size;
+          const plural = n === 1 ? "" : "s";
+          const meta = {
+            concluir: {
+              title: `Concluir ${n} tarefa${plural}?`,
+              body: `Move as selecionadas para "${colLabel(completedName)}".`,
+              cta: "Concluir",
+              danger: false,
+            },
+            arquivar: {
+              title: `Arquivar ${n} tarefa${plural}?`,
+              body: "Somem do board e das views; dá pra ver de novo com 'Ver arquivadas'.",
+              cta: "Arquivar",
+              danger: false,
+            },
+            "concluir-arquivar": {
+              title: `Concluir e arquivar ${n} tarefa${plural}?`,
+              body: `Move para "${colLabel(completedName)}" e arquiva.`,
+              cta: "Concluir + arquivar",
+              danger: false,
+            },
+            excluir: {
+              title: `Excluir ${n} tarefa${plural}?`,
+              body: "Não dá pra desfazer.",
+              cta: "Excluir",
+              danger: true,
+            },
+          }[bulk];
+          return (
+            <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+              <div className="border-line bg-surface w-full max-w-sm rounded-xl border p-5">
+                <h3 className="text-sm font-semibold">{meta.title}</h3>
+                <p className="text-ink-muted mt-1 text-sm">{meta.body}</p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBulk(null)}
+                    disabled={bulkPending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={meta.danger ? "destructive" : "default"}
+                    disabled={bulkPending}
+                    onClick={() => {
+                      const ids = [...selected];
+                      const done = `${ids.length} tarefa${ids.length === 1 ? "" : "s"} · ${meta.cta.toLowerCase()}`;
+                      if (bulk === "concluir")
+                        runBulk(
+                          () => bulkMoveStatus(ids, completedName),
+                          done,
+                        );
+                      else if (bulk === "arquivar")
+                        runBulk(() => bulkArchive(ids, false), done);
+                      else if (bulk === "concluir-arquivar")
+                        runBulk(() => bulkArchive(ids, true), done);
+                      else runBulk(() => bulkDelete(ids), done);
+                    }}
+                  >
+                    {bulkPending ? "…" : meta.cta}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </>
   );
 }
