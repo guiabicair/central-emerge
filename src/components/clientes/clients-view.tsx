@@ -14,14 +14,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { actionError, formatCurrency } from "@/lib/utils";
 
 export interface ClientRow {
@@ -35,7 +27,8 @@ export interface ClientRow {
   phone: string | null;
   notes: string | null;
   is_seed: boolean;
-  activeProjects: number;
+  recurringActive: number;
+  specificCount: number;
 }
 
 const BLANK: ClientInput = {
@@ -278,14 +271,37 @@ export function ClientsView({
     );
   }
 
-  const total = clients.reduce((s, c) => s + c.mrr, 0);
+  const mrrTotal = clients.reduce((s, c) => s + c.mrr, 0);
+  const withRecurring = clients.filter((c) => c.recurringActive > 0).length;
+  const ticketMedio = withRecurring ? mrrTotal / withRecurring : 0;
+  const pontuaisTotal = clients.reduce((s, c) => s + c.specificCount, 0);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="border-line bg-surface rounded-xl border px-4 py-3">
+          <div className="text-ink-muted text-[11px]">MRR total</div>
+          <div className="mt-1 text-lg font-semibold">
+            {formatCurrency(mrrTotal)}
+          </div>
+        </div>
+        <div className="border-line bg-surface rounded-xl border px-4 py-3">
+          <div className="text-ink-muted text-[11px]">
+            Ticket médio recorrente
+          </div>
+          <div className="text-data-text mt-1 text-lg font-semibold">
+            {formatCurrency(ticketMedio)}
+          </div>
+        </div>
+        <div className="border-line bg-surface rounded-xl border px-4 py-3">
+          <div className="text-ink-muted text-[11px]">Projetos pontuais</div>
+          <div className="mt-1 text-lg font-semibold">{pontuaisTotal}</div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-ink-muted text-xs">
-          {clients.length} {clients.length === 1 ? "cliente" : "clientes"} ·{" "}
-          {formatCurrency(total)}/mês
+          {clients.length} {clients.length === 1 ? "cliente" : "clientes"}
           {" · "}
           <Link
             href={showTest ? "/clientes" : "/clientes?teste=1"}
@@ -318,81 +334,64 @@ export function ClientsView({
           )}
         </div>
       ) : (
-        <div className="border-line bg-surface rounded-2xl border">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-line hover:bg-transparent">
-                <TableHead className="pl-4">Cliente</TableHead>
-                <TableHead>Segmento</TableHead>
-                <TableHead className="text-right">MRR</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Projetos ativos</TableHead>
-                {canManage && <TableHead className="pr-4" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((c) => (
-                <TableRow
-                  key={c.id}
-                  className="border-line"
-                  onClick={
-                    canManage ? () => setEditing(toInput(c)) : undefined
-                  }
-                  data-clickable={canManage || undefined}
-                >
-                  <TableCell className="pl-4">
-                    <div className="font-medium">{c.name}</div>
-                    {(c.contact_name || c.email) && (
-                      <div className="text-ink-muted text-xs">
-                        {c.contact_name}
-                        {c.contact_name && c.email ? " · " : ""}
-                        {c.email}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-ink-muted">
-                    {c.segment ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {formatCurrency(c.mrr)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill color={c.status === "inactive" ? "slate" : "green"}>
-                      {c.status === "inactive" ? "Inativo" : "Ativo"}
-                    </StatusPill>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {c.activeProjects}
-                  </TableCell>
-                  {canManage && (
-                    <TableCell className="pr-4">
-                      <div
-                        className="flex justify-end gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setEditing(toInput(c))}
-                        >
-                          <Pencil className="size-3.5" />
-                          <span className="sr-only">Editar</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setDeleting(c)}
-                        >
-                          <Trash2 className="size-3.5" />
-                          <span className="sr-only">Excluir</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {clients.map((c) => (
+            <div
+              key={c.id}
+              className="border-line bg-surface hover:border-data/40 relative rounded-2xl border p-4 transition-colors"
+            >
+              <Link href={`/clientes/${c.id}`} className="block">
+                <div className="flex items-start justify-between gap-2 pr-14">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{c.name}</div>
+                    <div className="text-ink-muted truncate text-xs">
+                      {c.segment ?? "—"}
+                      {c.contact_name ? ` · ${c.contact_name}` : ""}
+                    </div>
+                  </div>
+                  <StatusPill
+                    color={c.status === "inactive" ? "slate" : "green"}
+                  >
+                    {c.status === "inactive" ? "Inativo" : "Ativo"}
+                  </StatusPill>
+                </div>
+                <div className="mt-3 flex items-end justify-between">
+                  <div>
+                    <div className="text-data-text text-lg font-semibold">
+                      {formatCurrency(c.mrr)}
+                    </div>
+                    <div className="text-ink-muted text-[11px]">MRR / mês</div>
+                  </div>
+                  <div className="text-ink-muted text-right text-[11px]">
+                    {c.recurringActive} recorrente(s)
+                    <br />
+                    {c.specificCount} pontual(is)
+                  </div>
+                </div>
+              </Link>
+
+              {canManage && (
+                <div className="absolute top-3 right-3 flex gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setEditing(toInput(c))}
+                  >
+                    <Pencil className="size-3.5" />
+                    <span className="sr-only">Editar</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setDeleting(c)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span className="sr-only">Excluir</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

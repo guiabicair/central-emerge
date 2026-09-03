@@ -5,8 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Clientes · Central Emerge" };
 
-const DONE_PROJECT_STATUS = ["completed", "done", "cancelled", "canceled", "archived"];
-
 export default async function ClientesPage({
   searchParams,
 }: {
@@ -29,26 +27,28 @@ export default async function ClientesPage({
     await Promise.all([
       showTest ? clientsQuery : clientsQuery.eq("is_seed", true),
       can("clientes.manage"),
-      supabase
-        .from("recurring_projects")
-        .select("client_id, status")
-        .eq("status", "active"),
-      supabase.from("specific_projects").select("client_id, status"),
+      supabase.from("recurring_projects").select("client_id, status"),
+      supabase.from("specific_projects").select("client_id"),
     ]);
 
-  const activeProjects = new Map<string, number>();
+  const recurringActive = new Map<string, number>();
   for (const r of recurring.data ?? []) {
-    if (r.client_id)
-      activeProjects.set(r.client_id, (activeProjects.get(r.client_id) ?? 0) + 1);
+    if (r.client_id && r.status === "active")
+      recurringActive.set(
+        r.client_id,
+        (recurringActive.get(r.client_id) ?? 0) + 1,
+      );
   }
+  const specificCount = new Map<string, number>();
   for (const s of specific.data ?? []) {
-    if (s.client_id && !DONE_PROJECT_STATUS.includes(s.status ?? ""))
-      activeProjects.set(s.client_id, (activeProjects.get(s.client_id) ?? 0) + 1);
+    if (s.client_id)
+      specificCount.set(s.client_id, (specificCount.get(s.client_id) ?? 0) + 1);
   }
 
   const clients = (clientsData ?? []).map((c) => ({
     ...c,
-    activeProjects: activeProjects.get(c.id) ?? 0,
+    recurringActive: recurringActive.get(c.id) ?? 0,
+    specificCount: specificCount.get(c.id) ?? 0,
   }));
 
   return (
@@ -58,7 +58,7 @@ export default async function ClientesPage({
         description={
           error
             ? "Erro ao carregar — rode a migration 0003"
-            : `${clients.length} ${clients.length === 1 ? "cliente" : "clientes"}`
+            : "Hub por cliente — projetos, tarefas, entregas, financeiro"
         }
       />
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
