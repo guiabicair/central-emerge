@@ -143,7 +143,7 @@ function ClientForm({
             <input
               type="number"
               min={0}
-              step={100}
+              step="any"
               value={form.mrr ?? 0}
               onChange={(e) => set("mrr", Number(e.target.value))}
               className={inputCls}

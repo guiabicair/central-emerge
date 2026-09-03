@@ -205,7 +205,7 @@ function LeadForm({
             <input
               type="number"
               min={0}
-              step={100}
+              step="any"
               value={form.valor_estimado ?? 0}
               onChange={(e) => set("valor_estimado", Number(e.target.value))}
               className={`mt-1 ${inputCls}`}

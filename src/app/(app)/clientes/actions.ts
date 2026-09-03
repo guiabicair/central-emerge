@@ -44,9 +44,12 @@ export async function saveClient(input: ClientInput) {
   const supabase = await createClient();
   const row = normalize(input);
 
+  // is_seed marca "cliente real / curado" (seed OU criado aqui). O que fica
+  // com is_seed=false são as ~21 linhas de teste legadas do Lovable, que a
+  // lista esconde por padrão. Cliente criado no app é real → is_seed=true.
   const { error } = input.id
     ? await supabase.from("clients").update(row).eq("id", input.id)
-    : await supabase.from("clients").insert({ ...row, is_seed: false });
+    : await supabase.from("clients").insert({ ...row, is_seed: true });
 
   if (error) throw new Error(error.message);
   revalidatePath("/clientes");

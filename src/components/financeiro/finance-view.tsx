@@ -109,7 +109,7 @@ function AdjustCashModal({
           </span>
           <input
             type="number"
-            step={0.01}
+            step="any"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="border-line-strong focus:border-data mt-1 h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none"
