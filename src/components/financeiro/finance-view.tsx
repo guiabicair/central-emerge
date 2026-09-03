@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { adjustCash } from "@/app/(app)/financeiro/actions";
 import { FinanceChart } from "@/components/financeiro/finance-chart";
+import { MetaEditor, type MetaVal } from "@/components/financeiro/meta-editor";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,8 @@ interface Props {
   caixaHoje: number | null;
   mrr: number;
   meta: Meta | null;
+  allMetas: MetaVal[];
+  metaPeriods: string[];
   chart: { mes: string; entradas: number; saidas: number }[];
   chartHasData: boolean;
   recurring: {
@@ -162,6 +165,7 @@ function AdjustCashModal({
 export function FinanceView(props: Props) {
   const [drill, setDrill] = useState<Drill>(null);
   const [adjusting, setAdjusting] = useState(false);
+  const [metaPeriodo, setMetaPeriodo] = useState(props.periodo);
 
   if (props.loadError) {
     return (
@@ -321,65 +325,49 @@ export function FinanceView(props: Props) {
               <>
                 <SheetHeader className="border-line border-b p-5 pr-12">
                   <SheetTitle className="text-base font-semibold">
-                    Meta do mês · {props.periodo}
+                    Metas por frente
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                  {!props.meta ? (
-                    <p className="text-ink-muted text-sm">
-                      Sem meta cadastrada em <code>vendas_metas</code> para{" "}
-                      {props.periodo}.
-                    </p>
-                  ) : (
-                    <>
-                      <div className="border-line rounded-lg border p-3">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-ink-muted">
-                            Realizado registrado{" "}
-                            {props.meta.status === "confirmada" ? "" : "(rascunho)"}
-                          </span>
-                          <span className="font-semibold">
-                            {formatCurrency(props.meta.realizado)} /{" "}
-                            {formatCurrency(props.meta.valor)}
-                          </span>
-                        </div>
-                        <div className="bg-surface-2 mt-2 h-1.5 overflow-hidden rounded-full">
-                          <div
-                            className="bg-data h-full rounded-full"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                props.meta.valor
-                                  ? (props.meta.realizado / props.meta.valor) * 100
-                                  : 0,
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="text-ink-muted mt-2 text-[11px]">
-                          Referência — entradas da empresa no mês:{" "}
-                          {formatCurrency(props.meta.entradasMes)} (não é o
-                          realizado desta meta).
-                        </p>
-                      </div>
-                      <p className="text-ink-muted text-[11px]">
-                        Por frente (meta · realizado registrado em vendas_metas):
-                      </p>
-                      {props.meta.frentes.map((f) => (
-                        <div
-                          key={f.frente}
-                          className="border-line flex items-center justify-between rounded-lg border p-2.5 text-sm"
-                        >
-                          <span className="text-ink-muted">{f.frente}</span>
-                          <span>
-                            {formatCurrency(f.meta)} ·{" "}
-                            <span className="text-ink-muted">
-                              {formatCurrency(f.realizado)}
-                            </span>
-                          </span>
-                        </div>
+                  <label className="block">
+                    <span className="text-ink-muted text-[11px] font-semibold uppercase">
+                      Período
+                    </span>
+                    <select
+                      value={metaPeriodo}
+                      onChange={(e) => setMetaPeriodo(e.target.value)}
+                      className="border-line-strong mt-1 h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none"
+                    >
+                      {props.metaPeriods.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                          {p === props.periodo ? " (atual)" : ""}
+                        </option>
                       ))}
-                    </>
+                    </select>
+                  </label>
+
+                  <MetaEditor
+                    key={metaPeriodo}
+                    periodo={metaPeriodo}
+                    metas={props.allMetas.filter(
+                      (m) => m.periodo === metaPeriodo,
+                    )}
+                    canManage={props.canManage}
+                  />
+
+                  {metaPeriodo === props.periodo && (
+                    <p className="text-ink-muted text-[11px]">
+                      Referência — entradas da empresa no mês:{" "}
+                      {formatCurrency(props.meta?.entradasMes ?? 0)} (não é o
+                      realizado das metas; é o total de recorrentes + pagos).
+                    </p>
+                  )}
+                  {!props.canManage && (
+                    <p className="text-ink-muted text-[11px]">
+                      Você não tem <code>financeiro.manage</code> — metas em
+                      modo leitura.
+                    </p>
                   )}
                 </div>
               </>

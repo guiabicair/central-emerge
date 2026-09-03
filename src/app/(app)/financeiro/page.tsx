@@ -57,8 +57,10 @@ export default async function FinanceiroPage() {
         .order("date", { ascending: false }),
       supabase
         .from("vendas_metas")
-        .select("id, frente, meta_valor, realizado_valor, meta_status")
-        .eq("periodo", periodo),
+        .select("id, periodo, frente, meta_valor, realizado_valor, meta_status")
+        .gte("periodo", months[0])
+        .order("periodo")
+        .order("frente"),
     ]);
 
   const loadError =
@@ -137,17 +139,25 @@ export default async function FinanceiroPage() {
   }));
   const caixaHoje = cashHistory[0]?.amount ?? null;
 
-  const metaValor = (metaRes.data ?? []).reduce(
-    (s, r) => s + (Number(r.meta_valor) || 0),
-    0,
-  );
-  const metaRealizado = (metaRes.data ?? []).reduce(
-    (s, r) => s + (Number(r.realizado_valor) || 0),
-    0,
-  );
+  type MetaRow = {
+    periodo: string;
+    frente: string;
+    meta_valor: number | null;
+    realizado_valor: number;
+    meta_status: string;
+  };
+  const allMetas = ((metaRes.data ?? []) as MetaRow[]).map((r) => ({
+    periodo: r.periodo,
+    frente: r.frente,
+    meta: Number(r.meta_valor) || 0,
+    realizado: Number(r.realizado_valor) || 0,
+    status: r.meta_status === "confirmada" ? "confirmada" : "draft",
+  }));
+  const currentMetas = allMetas.filter((m) => m.periodo === periodo);
+  const metaValor = currentMetas.reduce((s, r) => s + r.meta, 0);
+  const metaRealizado = currentMetas.reduce((s, r) => s + r.realizado, 0);
   // referência (não é o realizado da meta): entradas da empresa no mês corrente
-  const entradasMes =
-    (chart.at(-1)?.entradas ?? 0);
+  const entradasMes = chart.at(-1)?.entradas ?? 0;
 
   return (
     <>
@@ -165,20 +175,24 @@ export default async function FinanceiroPage() {
           caixaHoje={caixaHoje}
           mrr={mrr}
           meta={
-            (metaRes.data ?? []).length
+            currentMetas.length
               ? {
                   valor: metaValor,
                   realizado: metaRealizado,
                   entradasMes,
-                  status: (metaRes.data ?? [])[0]?.meta_status ?? "draft",
-                  frentes: (metaRes.data ?? []).map((r) => ({
+                  status: currentMetas.every((m) => m.status === "confirmada")
+                    ? "confirmada"
+                    : "draft",
+                  frentes: currentMetas.map((r) => ({
                     frente: r.frente,
-                    meta: Number(r.meta_valor) || 0,
-                    realizado: Number(r.realizado_valor) || 0,
+                    meta: r.meta,
+                    realizado: r.realizado,
                   })),
                 }
               : null
           }
+          allMetas={allMetas}
+          metaPeriods={[...months].reverse()}
           chart={chart}
           chartHasData={chartHasData}
           recurring={recurring}
