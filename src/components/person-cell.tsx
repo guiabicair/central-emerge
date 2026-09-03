@@ -8,10 +8,15 @@ export function PersonCell({ responsavelId }: { responsavelId: string }) {
       <Avatar className="size-6">
         <AvatarFallback
           className="text-[10px] font-semibold"
-          style={{
-            backgroundColor: `${person?.cor ?? "#8b918f"}22`,
-            color: person?.cor ?? "#8b918f",
-          }}
+          style={
+            person
+              ? { backgroundColor: `${person.cor}22`, color: person.cor }
+              : {
+                  backgroundColor:
+                    "color-mix(in oklab, var(--ink-muted) 14%, transparent)",
+                  color: "var(--ink-muted)",
+                }
+          }
         >
           {person?.iniciais ?? "--"}
         </AvatarFallback>

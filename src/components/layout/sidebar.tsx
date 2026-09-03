@@ -20,11 +20,11 @@ export async function Sidebar() {
   return (
     <aside className="bg-sidebar border-sidebar-border hidden w-64 shrink-0 flex-col border-r py-5 md:flex">
       <div className="px-5">
-        <BrandMark />
+        <BrandMark tone="sidebar" />
       </div>
 
       <div className="mt-7 flex-1 overflow-y-auto">
-        <p className="text-muted-foreground px-6 pb-2 text-[11px] font-medium tracking-wide uppercase">
+        <p className="text-sidebar-foreground/60 px-6 pb-2 text-[11px] font-medium tracking-wide uppercase">
           Navegação
         </p>
         <SidebarNav />
@@ -35,7 +35,7 @@ export async function Sidebar() {
           {profile?.avatar_url && (
             <AvatarImage src={profile.avatar_url} alt={nome} />
           )}
-          <AvatarFallback className="bg-[#45f0d1]/15 text-xs font-semibold text-[#45f0d1]">
+          <AvatarFallback className="bg-data/15 text-data text-xs font-semibold">
             {initials(nome)}
           </AvatarFallback>
         </Avatar>
@@ -43,7 +43,7 @@ export async function Sidebar() {
           <div className="text-sidebar-accent-foreground truncate text-sm font-medium">
             {nome}
           </div>
-          <div className="text-muted-foreground truncate text-[11px]">
+          <div className="text-sidebar-foreground/60 truncate text-[11px]">
             {email}
           </div>
         </div>
@@ -51,7 +51,7 @@ export async function Sidebar() {
           <button
             type="submit"
             title="Sair"
-            className="text-muted-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent grid size-8 shrink-0 place-items-center rounded-lg transition-colors"
+            className="text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent grid size-8 shrink-0 place-items-center rounded-lg transition-colors"
           >
             <LogOut className="size-4" />
             <span className="sr-only">Sair</span>

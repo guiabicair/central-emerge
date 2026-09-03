@@ -63,7 +63,7 @@ export default function DashboardPage() {
             label="Taxa de fechamento"
             value={`${Math.round(taxa * 100)}%`}
             hint="fechados / decididos"
-            accent="#45f0d1"
+            accent="data"
           />
           <StatTile
             label="Tarefas ativas"
@@ -74,7 +74,7 @@ export default function DashboardPage() {
             label="Tarefas atrasadas"
             value={tarefasAtrasadas}
             hint="prazo vencido"
-            accent={tarefasAtrasadas > 0 ? "#f87171" : undefined}
+            accent={tarefasAtrasadas > 0 ? "gap" : undefined}
           />
           <StatTile
             label="Caixa atual"

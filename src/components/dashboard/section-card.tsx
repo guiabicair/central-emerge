@@ -10,11 +10,11 @@ export function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <div className="border-border bg-card rounded-2xl border p-4">
+    <div className="border-line bg-surface rounded-2xl border p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-sm font-semibold">{title}</h3>
         {summary != null && (
-          <span className="text-muted-foreground text-xs">{summary}</span>
+          <span className="text-ink-muted text-xs">{summary}</span>
         )}
       </div>
       <div className="mt-3">{children}</div>

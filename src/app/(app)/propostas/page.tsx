@@ -29,7 +29,7 @@ export default function PropostasPage() {
               label="Taxa de aceite"
               value={`${Math.round(stats.taxaAceite * 100)}%`}
               hint={`${stats.aceitas}/${stats.enviadas} enviadas`}
-              accent="#34d399"
+              accent="done"
             />
             <StatTile
               label="Em propostas ativas"
@@ -40,7 +40,7 @@ export default function PropostasPage() {
               label="Valor fechado"
               value={formatCompactCurrency(stats.valorFechado)}
               hint="propostas aceitas"
-              accent="#45f0d1"
+              accent="data"
             />
           </div>
 

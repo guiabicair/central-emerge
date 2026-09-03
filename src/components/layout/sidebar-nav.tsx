@@ -31,19 +31,19 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
           >
             <span
               className={cn(
-                "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-brand transition-opacity",
+                "bg-data absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full transition-opacity",
                 active ? "opacity-100" : "opacity-0",
               )}
             />
             <Icon
               className={cn(
                 "size-4 shrink-0",
-                active ? "text-brand" : "text-current",
+                active ? "text-data" : "text-current",
               )}
             />
             <span className="flex-1 truncate">{item.label}</span>
             {!item.ready && (
-              <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="border-sidebar-border text-sidebar-foreground/60 rounded-full border px-1.5 py-0.5 text-[10px] font-medium">
                 em breve
               </span>
             )}

@@ -23,7 +23,7 @@ export function Topbar({ title, description }: TopbarProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="border-border bg-background/80 sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b px-4 backdrop-blur md:px-6">
+    <header className="border-line bg-ground/80 sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b px-4 backdrop-blur md:px-6">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger
           render={
@@ -36,7 +36,7 @@ export function Topbar({ title, description }: TopbarProps) {
         <SheetContent side="left" className="bg-sidebar w-72 p-0">
           <SheetHeader className="p-5">
             <SheetTitle className="text-left">
-              <BrandMark />
+              <BrandMark tone="sidebar" />
             </SheetTitle>
           </SheetHeader>
           <div className="pb-6">
@@ -48,12 +48,12 @@ export function Topbar({ title, description }: TopbarProps) {
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold">{title}</h1>
         {description && (
-          <p className="text-muted-foreground truncate text-xs">{description}</p>
+          <p className="text-ink-muted truncate text-xs">{description}</p>
         )}
       </div>
 
       <div className="hidden items-center gap-2 sm:flex">
-        <div className="border-input bg-muted/40 text-muted-foreground flex h-9 w-56 items-center gap-2 rounded-lg border px-3 text-sm">
+        <div className="border-line-strong bg-surface-2/40 text-ink-muted flex h-9 w-56 items-center gap-2 rounded-lg border px-3 text-sm">
           <Search className="size-4" />
           <span>Buscar…</span>
         </div>
