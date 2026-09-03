@@ -840,37 +840,52 @@ export type Database = {
       clients: {
         Row: {
           company: string | null
+          contact_name: string | null
           created_at: string
           created_by: string | null
           email: string | null
           figma_link: string | null
           id: string
+          is_seed: boolean
+          mrr: number
           name: string
+          notes: string | null
           phone: string | null
+          segment: string | null
           status: string
           updated_at: string
         }
         Insert: {
           company?: string | null
+          contact_name?: string | null
           created_at?: string
           created_by?: string | null
           email?: string | null
           figma_link?: string | null
           id?: string
+          is_seed?: boolean
+          mrr?: number
           name: string
+          notes?: string | null
           phone?: string | null
+          segment?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           company?: string | null
+          contact_name?: string | null
           created_at?: string
           created_by?: string | null
           email?: string | null
           figma_link?: string | null
           id?: string
+          is_seed?: boolean
+          mrr?: number
           name?: string
+          notes?: string | null
           phone?: string | null
+          segment?: string | null
           status?: string
           updated_at?: string
         }
