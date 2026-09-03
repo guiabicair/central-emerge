@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -35,6 +35,8 @@ export interface TaskRow {
   clientId: string | null;
   clientName: string | null;
   dueDate: string | null;
+  driveLink: string | null;
+  figmaLink: string | null;
   assignees: string[];
   assigneeNames: string[];
 }
@@ -63,6 +65,8 @@ const BLANK: TaskInput = {
   priority: "medium",
   clientId: null,
   dueDate: null,
+  driveLink: "",
+  figmaLink: "",
   assignees: [],
 };
 
@@ -205,6 +209,34 @@ function TaskForm({
             />
           </label>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Link do Drive
+            </span>
+            <input
+              type="text"
+              inputMode="url"
+              placeholder="https://drive.google.com/…"
+              value={form.driveLink ?? ""}
+              onChange={(e) => set("driveLink", e.target.value)}
+              className={`mt-1 ${inputCls}`}
+            />
+          </label>
+          <label className="block">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Link do Figma
+            </span>
+            <input
+              type="text"
+              inputMode="url"
+              placeholder="https://figma.com/…"
+              value={form.figmaLink ?? ""}
+              onChange={(e) => set("figmaLink", e.target.value)}
+              className={`mt-1 ${inputCls}`}
+            />
+          </label>
+        </div>
         <div>
           <span className="text-ink-muted text-[11px] font-semibold uppercase">
             Responsáveis
@@ -338,6 +370,35 @@ function Card({
         )}
       </div>
 
+      {(task.driveLink || task.figmaLink) && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {task.driveLink && (
+            <a
+              href={task.driveLink}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="border-line hover:border-data/40 hover:text-ink text-ink-muted inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
+            >
+              <ExternalLink className="size-3" />
+              Drive
+            </a>
+          )}
+          {task.figmaLink && (
+            <a
+              href={task.figmaLink}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="border-line hover:border-data/40 hover:text-ink text-ink-muted inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
+            >
+              <ExternalLink className="size-3" />
+              Figma
+            </a>
+          )}
+        </div>
+      )}
+
       {task.assigneeNames.length > 0 && (
         <div className="text-ink-muted mt-2 truncate text-[11px]">
           {task.assigneeNames.join(", ")}
@@ -407,6 +468,8 @@ export function TasksBoard({
       : "medium",
     clientId: t.clientId,
     dueDate: t.dueDate,
+    driveLink: t.driveLink ?? "",
+    figmaLink: t.figmaLink ?? "",
     assignees: t.assignees,
   });
 

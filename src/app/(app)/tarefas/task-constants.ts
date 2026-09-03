@@ -19,5 +19,7 @@ export interface TaskInput {
   priority: TaskPriorityReal;
   clientId?: string | null;
   dueDate?: string | null;
+  driveLink?: string | null;
+  figmaLink?: string | null;
   assignees: string[];
 }

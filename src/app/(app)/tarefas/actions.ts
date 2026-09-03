@@ -35,6 +35,8 @@ export async function saveTask(input: TaskInput) {
     priority: input.priority,
     client_id: input.clientId || null,
     due_date: input.dueDate || null,
+    drive_link: input.driveLink?.trim() || null,
+    figma_link: input.figmaLink?.trim() || null,
     assigned_to: input.assignees[0] ?? null,
     updated_at: new Date().toISOString(),
   };

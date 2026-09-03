@@ -13,7 +13,7 @@ export default async function TarefasPage() {
       supabase
         .from("tasks")
         .select(
-          "id, title, description, status, priority, client_id, due_date, created_at",
+          "id, title, description, status, priority, client_id, due_date, drive_link, figma_link, created_at",
         )
         .order("updated_at", { ascending: false }),
       supabase.from("task_assignees").select("task_id, user_id"),
@@ -52,6 +52,8 @@ export default async function TarefasPage() {
     clientId: t.client_id,
     clientName: t.client_id ? (nameByClient.get(t.client_id) ?? null) : null,
     dueDate: t.due_date,
+    driveLink: (t as { drive_link?: string | null }).drive_link ?? null,
+    figmaLink: (t as { figma_link?: string | null }).figma_link ?? null,
     assignees: assigneesByTask.get(t.id) ?? [],
     assigneeNames: (assigneesByTask.get(t.id) ?? []).map(
       (u) => nameByUser.get(u) ?? "—",
