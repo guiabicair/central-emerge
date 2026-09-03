@@ -14,11 +14,12 @@ import { brtParts } from "@/lib/calendar";
 function humanDay(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("pt-BR", {
+  const s = dt.toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "short",
     weekday: "short",
   });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export function TasksTimeline({
@@ -82,9 +83,7 @@ export function TasksTimeline({
                         : "bg-ink-muted"
                   }`}
                 />
-                <span className="text-xs font-semibold capitalize">
-                  {humanDay(day)}
-                </span>
+                <span className="text-xs font-semibold">{humanDay(day)}</span>
                 <span className="bg-surface-2 text-ink-muted rounded-full px-1.5 text-[11px]">
                   {items.length}
                 </span>
