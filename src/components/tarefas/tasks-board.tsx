@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
+  CalendarDays,
   Columns3,
   ExternalLink,
+  KanbanSquare,
+  List,
   Pencil,
   Plus,
+  Rows3,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,15 +28,18 @@ import {
   setStatusColor,
 } from "@/app/(app)/tarefas/actions";
 import {
-  STATUS_COLOR_DOT,
   STATUS_COLORS,
-  STATUS_LABEL,
   TASK_PRIORITY,
+  colDot,
+  colLabel,
   type StatusCol,
   type SubtaskInput,
   type TaskInput,
   type TaskPriorityReal,
 } from "@/app/(app)/tarefas/task-constants";
+import { TasksCalendar } from "@/components/tarefas/tasks-calendar";
+import { TasksList } from "@/components/tarefas/tasks-list";
+import { TasksTimeline } from "@/components/tarefas/tasks-timeline";
 import { StatusPill, type PillColor } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +48,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { actionError, formatDate } from "@/lib/utils";
+import { actionError, cn, formatDate } from "@/lib/utils";
 
 export interface TaskRow {
   id: string;
@@ -91,9 +98,14 @@ function clearDraft(id?: string) {
   }
 }
 
-const colLabel = (name: string) => STATUS_LABEL[name] ?? name;
-const colDot = (color: string) =>
-  STATUS_COLOR_DOT[color] ?? "var(--ink-muted)";
+type BoardView = "kanban" | "lista" | "calendario" | "cronograma";
+
+const VIEW_TABS: { id: BoardView; label: string; icon: typeof List }[] = [
+  { id: "kanban", label: "Kanban", icon: KanbanSquare },
+  { id: "lista", label: "Lista", icon: List },
+  { id: "calendario", label: "Calendário", icon: CalendarDays },
+  { id: "cronograma", label: "Cronograma", icon: Rows3 },
+];
 
 const PRIORITY: Record<
   TaskPriorityReal,
@@ -802,6 +814,7 @@ export function TasksBoard({
   const [editing, setEditing] = useState<TaskInput | null>(null);
   const [deleting, setDeleting] = useState<TaskRow | null>(null);
   const [manageCols, setManageCols] = useState(false);
+  const [view, setView] = useState<BoardView>("kanban");
 
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
@@ -837,12 +850,37 @@ export function TasksBoard({
     })),
   });
 
+  const openTask = (t: TaskRow) => setEditing(toInput(t));
+
   return (
     <>
-      <div className="border-line flex items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
-        <span className="text-ink-muted text-xs">
-          {tasks.length} tarefas · {cols.length} colunas
-        </span>
+      <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
+        <div className="flex items-center gap-3">
+          <div className="border-line bg-surface-2/40 flex items-center gap-0.5 rounded-lg border p-0.5">
+            {VIEW_TABS.map((v) => {
+              const Icon = v.icon;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setView(v.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    view === v.id
+                      ? "bg-surface text-ink shadow-sm"
+                      : "text-ink-muted hover:text-ink",
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  <span className="hidden sm:inline">{v.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="text-ink-muted text-xs">
+            {tasks.length} tarefas · {cols.length} colunas
+          </span>
+        </div>
         {canManage && (
           <div className="flex items-center gap-2">
             <Button
@@ -875,6 +913,12 @@ export function TasksBoard({
             </p>
           </div>
         </div>
+      ) : view === "lista" ? (
+        <TasksList tasks={tasks} statuses={cols} onOpenTask={openTask} />
+      ) : view === "calendario" ? (
+        <TasksCalendar tasks={tasks} statuses={cols} onOpenTask={openTask} />
+      ) : view === "cronograma" ? (
+        <TasksTimeline tasks={tasks} statuses={cols} onOpenTask={openTask} />
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
           {cols.map((col) => {

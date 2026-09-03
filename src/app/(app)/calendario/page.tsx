@@ -1,7 +1,13 @@
 import { CalendarBoard, type DayItem } from "@/components/calendario/calendar-board";
 import { Topbar } from "@/components/layout/topbar";
 import { can } from "@/lib/auth/roles";
-import { addMonths, monthMatrix, startOfMonth, ymd } from "@/lib/calendar";
+import {
+  addMonths,
+  brtParts,
+  monthMatrix,
+  startOfMonth,
+  ymd,
+} from "@/lib/calendar";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Calendário · Central Emerge" };
@@ -44,27 +50,8 @@ function parseMonth(m: string | undefined): Date {
   return startOfMonth(new Date());
 }
 
-// Os timestamps do banco são timestamptz e o runtime da Vercel é UTC.
-// A operação da Emerge é no fuso de São Paulo — e os due_date da Central
-// antiga foram gravados como "fim do dia BRT" (23:59 local = 02:59Z do dia
-// seguinte). Tudo que é dia/hora exibido precisa ser convertido pra BRT.
-const BRT_TZ = "America/Sao_Paulo";
-const brtFmt = new Intl.DateTimeFormat("en-CA", {
-  timeZone: BRT_TZ,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-function brt(iso: string): { day: string; hm: string } {
-  const p = Object.fromEntries(
-    brtFmt.formatToParts(new Date(iso)).map((x) => [x.type, x.value]),
-  ) as Record<string, string>;
-  const hour = p.hour === "24" ? "00" : p.hour;
-  return { day: `${p.year}-${p.month}-${p.day}`, hm: `${hour}:${p.minute}` };
-}
+// conversão pra fuso de São Paulo (BUG#9) — helper compartilhado em lib/calendar
+const brt = brtParts;
 
 function monthOf(iso: string | null | undefined): string | null {
   if (!iso) return null;

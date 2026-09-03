@@ -51,6 +51,20 @@ export interface StatusCol {
   position: number;
 }
 
+export const colLabel = (name: string) => STATUS_LABEL[name] ?? name;
+export const colDot = (color: string) =>
+  STATUS_COLOR_DOT[color] ?? "var(--ink-muted)";
+
+export const PRIORITY_META: Record<
+  string,
+  { label: string; color: string }
+> = {
+  low: { label: "Baixa", color: "slate" },
+  medium: { label: "Média", color: "blue" },
+  high: { label: "Alta", color: "amber" },
+  urgent: { label: "Urgente", color: "rose" },
+};
+
 export interface SubtaskInput {
   /** id real quando já existe; ausente = nova (ainda não persistida) */
   id?: string;
