@@ -2,39 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  LEAD_FRENTE,
+  LEAD_STATUS,
+  type LeadInput,
+  type LeadStatus,
+} from "@/app/(app)/pipeline/lead-constants";
 import { can } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-
-export const LEAD_STATUS = [
-  "novo",
-  "contatado",
-  "qualificado",
-  "descartado",
-  "virou_proposta",
-] as const;
-export type LeadStatus = (typeof LEAD_STATUS)[number];
-
-export const LEAD_FRENTE = [
-  "criptoforja",
-  "grupo_today_os",
-  "emerge_financeiro",
-  "emerge_propostas_dev",
-  "outro",
-] as const;
-export type LeadFrente = (typeof LEAD_FRENTE)[number];
-
-export interface LeadInput {
-  id?: number;
-  empresa: string;
-  frente: LeadFrente;
-  segmento?: string;
-  contato?: string;
-  origem?: string;
-  valor_estimado?: number;
-  responsavel?: string;
-  status: LeadStatus;
-  motivo_fit?: string;
-}
 
 async function guard() {
   if (!(await can("pipeline.manage"))) {

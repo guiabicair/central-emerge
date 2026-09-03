@@ -5,15 +5,17 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  TASK_PRIORITY,
-  TASK_STATUS,
   deleteTask,
   moveTaskStatus,
   saveTask,
+} from "@/app/(app)/tarefas/actions";
+import {
+  TASK_PRIORITY,
+  TASK_STATUS,
   type TaskInput,
   type TaskPriorityReal,
   type TaskStatusReal,
-} from "@/app/(app)/tarefas/actions";
+} from "@/app/(app)/tarefas/task-constants";
 import { StatusPill, type PillColor } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
 import {

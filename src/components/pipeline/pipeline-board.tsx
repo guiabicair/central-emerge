@@ -5,15 +5,17 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  LEAD_FRENTE,
-  LEAD_STATUS,
   deleteLead,
   moveLeadStage,
   saveLead,
+} from "@/app/(app)/pipeline/actions";
+import {
+  LEAD_FRENTE,
+  LEAD_STATUS,
   type LeadFrente,
   type LeadInput,
   type LeadStatus,
-} from "@/app/(app)/pipeline/actions";
+} from "@/app/(app)/pipeline/lead-constants";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,

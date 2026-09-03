@@ -2,31 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  TASK_PRIORITY,
+  TASK_STATUS,
+  type TaskInput,
+  type TaskStatusReal,
+} from "@/app/(app)/tarefas/task-constants";
 import { can } from "@/lib/auth/roles";
 import { getUser } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
-
-export const TASK_STATUS = [
-  "pending",
-  "in_progress",
-  "completed",
-  "cancelled",
-] as const;
-export type TaskStatusReal = (typeof TASK_STATUS)[number];
-
-export const TASK_PRIORITY = ["low", "medium", "high", "urgent"] as const;
-export type TaskPriorityReal = (typeof TASK_PRIORITY)[number];
-
-export interface TaskInput {
-  id?: string;
-  title: string;
-  description?: string;
-  status: TaskStatusReal;
-  priority: TaskPriorityReal;
-  clientId?: string | null;
-  dueDate?: string | null;
-  assignees: string[];
-}
 
 async function guard() {
   if (!(await can("tarefas.manage"))) {
@@ -57,10 +41,7 @@ export async function saveTask(input: TaskInput) {
 
   let taskId = input.id;
   if (taskId) {
-    const { error } = await supabase
-      .from("tasks")
-      .update(row)
-      .eq("id", taskId);
+    const { error } = await supabase.from("tasks").update(row).eq("id", taskId);
     if (error) throw new Error(error.message);
   } else {
     const { data, error } = await supabase
@@ -72,7 +53,6 @@ export async function saveTask(input: TaskInput) {
     taskId = data.id;
   }
 
-  // reconcilia task_assignees
   const { data: current } = await supabase
     .from("task_assignees")
     .select("user_id")
