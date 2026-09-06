@@ -4,6 +4,7 @@ import {
   FileText,
   LayoutDashboard,
   ListChecks,
+  Megaphone,
   Settings,
   Shield,
   Users,
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/tarefas", label: "Tarefas", icon: ListChecks, ready: true },
   { href: "/clientes", label: "Clientes", icon: Users, ready: true },
   { href: "/calendario", label: "Calendário", icon: CalendarDays, ready: true },
+  { href: "/calendario-social", label: "Social", icon: Megaphone, ready: true },
   { href: "/equipe/pessoas", label: "Equipe", icon: Shield, ready: true },
   { href: "/recursos/acessos", label: "Recursos", icon: BookLock, ready: true },
   {

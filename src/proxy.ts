@@ -14,7 +14,8 @@ export async function proxy(request: NextRequest) {
     pathname === "/login" ||
     pathname === "/privacidade" ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/c/"); // cronograma público por token
+    pathname.startsWith("/c/") || // cronograma público por token
+    pathname.startsWith("/social/"); // calendário social público por token
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
