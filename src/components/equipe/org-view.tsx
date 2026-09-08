@@ -882,10 +882,15 @@ function CompanyDialog({
   const [parent, setParent] = useState<string>(company?.parent_id ?? parentId ?? "");
   const [logo, setLogo] = useState<string | null>(company?.logo_url ?? null);
 
-  // matrizes possíveis: qualquer empresa menos ela mesma (ciclo mais fundo é barrado no server)
+  // matrizes possíveis: qualquer empresa menos ela mesma. Ciclos mais fundos e
+  // self-parent por outros caminhos são barrados no trigger 0021 (fonte da verdade).
   const parentOptions = companies.filter((c) => c.id !== company?.id);
 
   function save() {
+    if (company && parent && parent === company.id) {
+      toast.error("Uma empresa não pode ser matriz de si mesma.");
+      return;
+    }
     run(
       async () => {
         if (company) {

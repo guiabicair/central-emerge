@@ -45,6 +45,22 @@ function uniq(ids: string[]) {
   return [...new Set(ids.filter(Boolean))];
 }
 
+/**
+ * O trigger `app_companies_no_cycle` (migration 0021) é a fonte da verdade pro
+ * guard de ciclo de matriz. Quando ele dispara, o erro vem do banco — devolvemos
+ * a mensagem dele (já é amigável) e limpamos ruído de PostgREST se houver.
+ */
+function friendlyDbError(msg: string): string {
+  const m = msg.trim();
+  if (/matriz de si mesma/i.test(m)) {
+    return "Uma empresa não pode ser matriz de si mesma.";
+  }
+  if (/ciclo de matriz|possível ciclo/i.test(m)) {
+    return "Isso criaria um ciclo de matriz (A → … → A).";
+  }
+  return m;
+}
+
 /* ------------------------------------------------------------------ empresas */
 
 export async function createCompany(input: {
@@ -66,7 +82,7 @@ export async function createCompany(input: {
     frente_slug: input.frente_slug?.trim() || null,
     position: 100,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyDbError(error.message));
   revalidatePath(REV);
 }
 
@@ -112,7 +128,9 @@ export async function updateCompany(
   }
   if (patch.parent_id !== undefined) {
     const p = patch.parent_id || null;
-    if (p === id) throw new Error("Uma empresa não pode ser a própria matriz.");
+    // pré-checagens no app dão um erro mais rápido/claro; o trigger 0021 é a
+    // fonte da verdade e cobre qualquer caminho (SQL direto, importação, etc).
+    if (p === id) throw new Error("Uma empresa não pode ser matriz de si mesma.");
     if (p && (await wouldCreateCycle(db, id, p))) {
       throw new Error("Isso criaria um ciclo de matriz (A → … → A).");
     }
@@ -120,7 +138,7 @@ export async function updateCompany(
   }
 
   const { error } = await db.from("app_companies").update(upd).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyDbError(error.message));
   revalidatePath(REV);
 }
 
