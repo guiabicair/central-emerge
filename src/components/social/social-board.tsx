@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { DragEvent } from "react";
 import {
@@ -82,17 +82,40 @@ export function SocialBoard({
   const [view, setView] = useState<"mes" | "kanban">("mes");
   const [monthStart, setMonthStart] = useState<Date>(parseMonth(month));
   const [dialog, setDialog] = useState<
-    | { kind: "post"; date: string; post: SocialPost | null }
+    | { kind: "post"; date: string; postId: string | null }
     | { kind: "project" }
     | { kind: "marker"; date: string }
     | { kind: "share" }
     | null
   >(null);
+  // id de projeto pra qual o usuário navegou mas o server ainda não re-renderizou.
+  // enquanto isso o `activeId`/`project` prop estão defasados → trava as ações
+  // (senão "Compartilhar" entregava o token do projeto anterior — vazamento).
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const navigating = pendingId !== null && pendingId !== activeId;
 
   const project = projects.find((p) => p.id === activeId) ?? null;
 
-  const selectProject = (id: string) =>
+  const selectProject = (id: string) => {
+    if (id === activeId) return;
+    setDialog(null);
+    setPendingId(id);
     router.push(`/calendario-social?p=${id}`);
+  };
+
+  // projeto renderizado mudou de fato: fecha qualquer dialog aberto (não pode
+  // sobrar dialog do projeto antigo) e destrava as ações.
+  useEffect(() => {
+    setDialog(null);
+    setPendingId(null);
+  }, [activeId]);
+
+  // post do dialog sempre re-derivado da lista viva (mostra arte recém-enviada
+  // sem precisar fechar/reabrir).
+  const openPost =
+    dialog?.kind === "post" && dialog.postId
+      ? (posts.find((p) => p.id === dialog.postId) ?? null)
+      : null;
 
   const weeks = useMemo(() => monthMatrix(monthStart), [monthStart]);
   const postsByDay = useMemo(() => {
@@ -204,6 +227,7 @@ export function SocialBoard({
             <Button
               variant="outline"
               size="sm"
+              disabled={navigating}
               onClick={() => setDialog({ kind: "share" })}
             >
               <Share2 className="size-4" /> Compartilhar
@@ -273,7 +297,7 @@ export function SocialBoard({
                               type="button"
                               title="Novo post"
                               onClick={() =>
-                                setDialog({ kind: "post", date: key, post: null })
+                                setDialog({ kind: "post", date: key, postId: null })
                               }
                               className="text-ink-muted hover:text-ink"
                             >
@@ -321,7 +345,7 @@ export function SocialBoard({
                             post={p}
                             draggable={canManage}
                             onOpen={() =>
-                              setDialog({ kind: "post", date: p.date, post: p })
+                              setDialog({ kind: "post", date: p.date, postId: p.id })
                             }
                           />
                         ))}
@@ -336,18 +360,19 @@ export function SocialBoard({
           <KanbanView
             posts={posts}
             canManage={canManage}
-            onOpen={(p) => setDialog({ kind: "post", date: p.date, post: p })}
+            onOpen={(p) => setDialog({ kind: "post", date: p.date, postId: p.id })}
           />
         )}
       </div>
 
       {dialog?.kind === "post" && (
         <PostDialog
+          key={activeId ?? "none"}
           open
           onClose={() => setDialog(null)}
           projectId={project.id}
           date={dialog.date}
-          post={dialog.post}
+          post={openPost}
           canManage={canManage}
           tasks={tasks}
         />
@@ -364,6 +389,7 @@ export function SocialBoard({
       )}
       {dialog?.kind === "share" && (
         <ShareDialog
+          key={project.id}
           project={project}
           url={shareUrl}
           onClose={() => setDialog(null)}
