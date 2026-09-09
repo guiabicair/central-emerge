@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { can } from "@/lib/auth/roles";
+import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
 
 /**
@@ -391,6 +392,40 @@ export async function uploadCompanyLogo(formData: FormData): Promise<Result> {
     .eq("id", companyId);
   if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
+}
+
+/* ------------------------------------------------------------------ canvas (vista em nós) */
+
+/**
+ * Persiste a posição de um nó do canvas de Organização — layout PESSOAL
+ * (owner = usuário), reusa `app_canvas_nodes` (0009), board 'equipe'. Sem
+ * `revalidatePath` (arrastar não recarrega). Basta `equipe.view`.
+ */
+export async function saveOrgNodePosition(
+  entityId: string,
+  x: number,
+  y: number,
+): Promise<Result> {
+  const user = await getUser();
+  if (!user) return { error: "Sessão expirada." };
+  if (!(await can("equipe.view"))) return { error: "Sem acesso." };
+  if (!entityId) return { error: "Nó ausente." };
+
+  const db = await createUntypedClient();
+  const { error } = await db.from("app_canvas_nodes").upsert(
+    {
+      board: "equipe",
+      entity_id: entityId,
+      x: Math.round(x),
+      y: Math.round(y),
+      owner: user.id,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "board,entity_id,owner" },
+  );
+  if (error) return { error: error.message };
   return OK;
 }
 

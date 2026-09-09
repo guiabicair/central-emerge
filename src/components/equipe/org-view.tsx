@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import {
-  Building2,
   ChevronDown,
   ChevronRight,
   Crown,
@@ -39,6 +39,18 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+const OrgCanvas = dynamic(
+  () => import("@/components/equipe/org-canvas").then((m) => m.OrgCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-muted-foreground grid h-full place-items-center text-sm">
+        Carregando canvas…
+      </div>
+    ),
+  },
+);
+
 const COLORS = ["#45f0d1", "#c9ff3f", "#93a6ff", "#fbbf24", "#ff8f6b", "#c98bff"];
 
 function personName(p: TeamMember) {
@@ -57,9 +69,11 @@ function originLabel(source: string) {
 export function OrgView({
   data,
   canManage,
+  canvasPositions,
 }: {
   data: OrgData;
   canManage: boolean;
+  canvasPositions: Record<string, { x: number; y: number }>;
 }) {
   const [view, setView] = useState<"lista" | "nodes">("lista");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -209,18 +223,8 @@ export function OrgView({
       </div>
 
       {view === "nodes" ? (
-        <div className="flex flex-1 items-center justify-center p-8">
-          <div className="border-border bg-card/50 flex max-w-md flex-col items-center gap-3 rounded-2xl border border-dashed p-10 text-center">
-            <div className="bg-brand/10 text-brand grid size-12 place-items-center rounded-xl">
-              <Building2 className="size-6" />
-            </div>
-            <h2 className="text-lg font-semibold">Vista em nós — em breve</h2>
-            <p className="text-muted-foreground text-sm">
-              O organograma em nós (holding → empresa → time → pessoa, com papéis
-              efetivos e origem herdada) chega no próximo trem. Por enquanto, use a
-              vista em lista pra montar a estrutura.
-            </p>
-          </div>
+        <div className="min-h-0 flex-1">
+          <OrgCanvas data={data} positions={canvasPositions} />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-4 md:p-6">

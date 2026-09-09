@@ -6,6 +6,7 @@ import {
   type AppRoleWithPerms,
   type TeamMember,
 } from "@/lib/auth/roles";
+import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
 
 /* ------------------------------------------------------------------ *
@@ -154,4 +155,28 @@ export async function getOrgData(): Promise<OrgData> {
     clients: (clients.data as OrgClient[]) ?? [],
     effectiveRoles: (effective.data as EffectiveRole[]) ?? [],
   };
+}
+
+/**
+ * Posições salvas do canvas de organização — layout PESSOAL (owner = usuário),
+ * reusa `app_canvas_nodes` (0009) no board 'equipe'. Cada pessoa arruma a própria
+ * vista; não precisa de `equipe.manage` (que nem existe como permissão).
+ */
+export async function getOrgCanvasPositions(): Promise<
+  Record<string, { x: number; y: number }>
+> {
+  const user = await getUser();
+  if (!user) return {};
+  const db = await createUntypedClient();
+  const { data } = await db
+    .from("app_canvas_nodes")
+    .select("entity_id, x, y")
+    .eq("board", "equipe")
+    .eq("owner", user.id);
+
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const n of (data as { entity_id: string; x: number; y: number }[]) ?? []) {
+    out[n.entity_id] = { x: Number(n.x) || 0, y: Number(n.y) || 0 };
+  }
+  return out;
 }
