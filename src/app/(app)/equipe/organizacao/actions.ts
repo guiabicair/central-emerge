@@ -7,12 +7,22 @@ import { revalidatePath } from "next/cache";
 import { can } from "@/lib/auth/roles";
 import { createUntypedClient } from "@/lib/supabase/server";
 
+/**
+ * Padrão return-instead-of-throw: erros ESPERADos (regra de negócio, validação,
+ * rejeição do banco) voltam como `{ error }`. Em produção o Next 16 apaga a
+ * `message` de erros LANÇADOS de server action (sobra só o digest) — o client
+ * renderiza errado (React #441). `throw` fica só pra falha inesperada.
+ */
+type Result = { error?: string };
+const OK: Result = {};
+
 const REV = "/equipe/organizacao";
 
-async function guard() {
+async function guard(): Promise<Result | null> {
   if (!(await can("equipe.manage_roles"))) {
-    throw new Error("Sem permissão para gerir a organização.");
+    return { error: "Sem permissão para gerir a organização." };
   }
+  return null;
 }
 
 type DB = Awaited<ReturnType<typeof createUntypedClient>>;
@@ -68,11 +78,14 @@ export async function createCompany(input: {
   color?: string | null;
   parent_id?: string | null;
   frente_slug?: string | null;
-}) {
-  await guard();
+}): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const name = input.name.trim().slice(0, 80);
-  if (!name) throw new Error("Nome é obrigatório.");
+  if (!name) return { error: "Nome é obrigatório." };
+
   const slug = await uniqueCompanySlug(db, name);
   const { error } = await db.from("app_companies").insert({
     name,
@@ -82,8 +95,9 @@ export async function createCompany(input: {
     frente_slug: input.frente_slug?.trim() || null,
     position: 100,
   });
-  if (error) throw new Error(friendlyDbError(error.message));
+  if (error) return { error: friendlyDbError(error.message) };
   revalidatePath(REV);
+  return OK;
 }
 
 /** Caminha a cadeia de matrizes a partir de `newParentId`; true se topar com `companyId`. */
@@ -112,14 +126,16 @@ export async function updateCompany(
     parent_id?: string | null;
     frente_slug?: string | null;
   },
-) {
-  await guard();
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const upd: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (patch.name !== undefined) {
     const n = patch.name.trim().slice(0, 80);
-    if (!n) throw new Error("Nome é obrigatório.");
+    if (!n) return { error: "Nome é obrigatório." };
     upd.name = n;
   }
   if (patch.color !== undefined) upd.color = patch.color || null;
@@ -130,26 +146,30 @@ export async function updateCompany(
     const p = patch.parent_id || null;
     // pré-checagens no app dão um erro mais rápido/claro; o trigger 0021 é a
     // fonte da verdade e cobre qualquer caminho (SQL direto, importação, etc).
-    if (p === id) throw new Error("Uma empresa não pode ser matriz de si mesma.");
+    if (p === id) return { error: "Uma empresa não pode ser matriz de si mesma." };
     if (p && (await wouldCreateCycle(db, id, p))) {
-      throw new Error("Isso criaria um ciclo de matriz (A → … → A).");
+      return { error: "Isso criaria um ciclo de matriz (A → … → A)." };
     }
     upd.parent_id = p;
   }
 
   const { error } = await db.from("app_companies").update(upd).eq("id", id);
-  if (error) throw new Error(friendlyDbError(error.message));
+  if (error) return { error: friendlyDbError(error.message) };
   revalidatePath(REV);
+  return OK;
 }
 
-export async function deleteCompany(id: string) {
-  await guard();
+export async function deleteCompany(id: string): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   // FK on delete: times/membros/papéis/cliente-vínculos da empresa somem (cascade);
   // empresas-filhas ficam órfãs (parent_id -> set null); `clients` não é tocado.
   const { error } = await db.from("app_companies").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
 }
 
 /* ------------------------------------------------------------------ times */
@@ -157,46 +177,57 @@ export async function deleteCompany(id: string) {
 export async function createTeam(
   companyId: string,
   input: { name: string; color?: string | null },
-) {
-  await guard();
-  if (!companyId) throw new Error("Empresa é obrigatória.");
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+  if (!companyId) return { error: "Empresa é obrigatória." };
+
   const db = await createUntypedClient();
   const name = input.name.trim().slice(0, 80);
-  if (!name) throw new Error("Nome é obrigatório.");
+  if (!name) return { error: "Nome é obrigatório." };
+
   const { error } = await db.from("app_teams").insert({
     company_id: companyId,
     name,
     color: input.color || null,
     position: 100,
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
 }
 
 export async function updateTeam(
   id: string,
   patch: { name?: string; color?: string | null },
-) {
-  await guard();
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const upd: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) {
     const n = patch.name.trim().slice(0, 80);
-    if (!n) throw new Error("Nome é obrigatório.");
+    if (!n) return { error: "Nome é obrigatório." };
     upd.name = n;
   }
   if (patch.color !== undefined) upd.color = patch.color || null;
+
   const { error } = await db.from("app_teams").update(upd).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
 }
 
-export async function deleteTeam(id: string) {
-  await guard();
+export async function deleteTeam(id: string): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error } = await db.from("app_teams").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
 }
 
 /* ------------------------------------------------------------------ vínculos */
@@ -204,14 +235,16 @@ export async function deleteTeam(id: string) {
 export async function setTeamMembers(
   teamId: string,
   members: { user_id: string; is_lead: boolean }[],
-) {
-  await guard();
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error: delErr } = await db
     .from("app_team_members")
     .delete()
     .eq("team_id", teamId);
-  if (delErr) throw new Error(delErr.message);
+  if (delErr) return { error: delErr.message };
 
   const seen = new Set<string>();
   const rows = members
@@ -224,117 +257,147 @@ export async function setTeamMembers(
 
   if (rows.length) {
     const { error } = await db.from("app_team_members").insert(rows);
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
   revalidatePath(REV);
+  return OK;
 }
 
-export async function setCompanyMembers(companyId: string, userIds: string[]) {
-  await guard();
+export async function setCompanyMembers(
+  companyId: string,
+  userIds: string[],
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error: delErr } = await db
     .from("app_company_members")
     .delete()
     .eq("company_id", companyId);
-  if (delErr) throw new Error(delErr.message);
+  if (delErr) return { error: delErr.message };
 
   const ids = uniq(userIds);
   if (ids.length) {
     const { error } = await db
       .from("app_company_members")
       .insert(ids.map((user_id) => ({ company_id: companyId, user_id })));
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
   revalidatePath(REV);
+  return OK;
 }
 
-export async function setTeamRoles(teamId: string, roleIds: string[]) {
-  await guard();
+export async function setTeamRoles(
+  teamId: string,
+  roleIds: string[],
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error: delErr } = await db
     .from("app_team_roles")
     .delete()
     .eq("team_id", teamId);
-  if (delErr) throw new Error(delErr.message);
+  if (delErr) return { error: delErr.message };
 
   const ids = uniq(roleIds);
   if (ids.length) {
     const { error } = await db
       .from("app_team_roles")
       .insert(ids.map((role_id) => ({ team_id: teamId, role_id })));
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
   revalidatePath(REV);
+  return OK;
 }
 
-export async function setCompanyRoles(companyId: string, roleIds: string[]) {
-  await guard();
+export async function setCompanyRoles(
+  companyId: string,
+  roleIds: string[],
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error: delErr } = await db
     .from("app_company_roles")
     .delete()
     .eq("company_id", companyId);
-  if (delErr) throw new Error(delErr.message);
+  if (delErr) return { error: delErr.message };
 
   const ids = uniq(roleIds);
   if (ids.length) {
     const { error } = await db
       .from("app_company_roles")
       .insert(ids.map((role_id) => ({ company_id: companyId, role_id })));
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
   revalidatePath(REV);
+  return OK;
 }
 
-export async function setCompanyClients(companyId: string, clientIds: string[]) {
-  await guard();
+export async function setCompanyClients(
+  companyId: string,
+  clientIds: string[],
+): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { error: delErr } = await db
     .from("app_company_clients")
     .delete()
     .eq("company_id", companyId);
-  if (delErr) throw new Error(delErr.message);
+  if (delErr) return { error: delErr.message };
 
   const ids = uniq(clientIds);
   if (ids.length) {
     const { error } = await db
       .from("app_company_clients")
       .insert(ids.map((client_id) => ({ company_id: companyId, client_id })));
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   }
   revalidatePath(REV);
+  return OK;
 }
 
 /* ------------------------------------------------------------------ logo (Storage bucket 'org') */
 
-export async function uploadCompanyLogo(formData: FormData) {
-  await guard();
+export async function uploadCompanyLogo(formData: FormData): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const companyId = String(formData.get("company_id") ?? "");
   const file = formData.get("file");
   if (!companyId || !(file instanceof File) || file.size === 0) {
-    throw new Error("Arquivo inválido.");
+    return { error: "Arquivo inválido." };
   }
-  if (file.size > 4 * 1024 * 1024) throw new Error("Máximo 4 MB.");
+  if (file.size > 4 * 1024 * 1024) return { error: "Máximo 4 MB." };
 
   const ext = (file.name.split(".").pop() || "png").toLowerCase().slice(0, 5);
   const path = `${companyId}/${randomUUID()}.${ext}`;
   const { error: upErr } = await db.storage
     .from("org")
     .upload(path, file, { contentType: file.type || undefined, upsert: false });
-  if (upErr) throw new Error(upErr.message);
+  if (upErr) return { error: upErr.message };
 
   const { data: pub } = db.storage.from("org").getPublicUrl(path);
   const { error } = await db
     .from("app_companies")
     .update({ logo_url: pub.publicUrl, updated_at: new Date().toISOString() })
     .eq("id", companyId);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(REV);
+  return OK;
 }
 
-export async function removeCompanyLogo(id: string) {
-  await guard();
+export async function removeCompanyLogo(id: string): Promise<Result> {
+  const denied = await guard();
+  if (denied) return denied;
+
   const db = await createUntypedClient();
   const { data: row } = await db
     .from("app_companies")
@@ -345,7 +408,7 @@ export async function removeCompanyLogo(id: string) {
     .from("app_companies")
     .update({ logo_url: null, updated_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   const url = (row as { logo_url?: string } | null)?.logo_url;
   if (url) {
@@ -353,4 +416,5 @@ export async function removeCompanyLogo(id: string) {
     if (m) await db.storage.from("org").remove([m]);
   }
   revalidatePath(REV);
+  return OK;
 }

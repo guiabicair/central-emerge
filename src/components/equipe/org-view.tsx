@@ -820,12 +820,19 @@ function TextBtn({
   );
 }
 
+/** Resultado das server actions de org — erro esperado volta como `{ error }`. */
+type ActionResult = { error?: string } | void;
+
 function useAct() {
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<unknown>, after?: () => void) =>
+  const run = (fn: () => Promise<ActionResult>, after?: () => void) =>
     start(async () => {
       try {
-        await fn();
+        const res = await fn();
+        if (res && res.error) {
+          toast.error(res.error); // mantém o dialog aberto
+          return;
+        }
         after?.();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Falhou");
@@ -892,23 +899,20 @@ function CompanyDialog({
       return;
     }
     run(
-      async () => {
-        if (company) {
-          await updateCompany(company.id, {
-            name,
-            color,
-            frente_slug: frente,
-            parent_id: parent || null,
-          });
-        } else {
-          await createCompany({
-            name,
-            color,
-            frente_slug: frente,
-            parent_id: parent || null,
-          });
-        }
-      },
+      () =>
+        company
+          ? updateCompany(company.id, {
+              name,
+              color,
+              frente_slug: frente,
+              parent_id: parent || null,
+            })
+          : createCompany({
+              name,
+              color,
+              frente_slug: frente,
+              parent_id: parent || null,
+            }),
       onClose,
     );
   }
@@ -922,9 +926,11 @@ function CompanyDialog({
     fd.set("company_id", company.id);
     fd.set("file", file);
     run(async () => {
-      await uploadCompanyLogo(fd);
+      const res = await uploadCompanyLogo(fd);
+      if (res?.error) return res;
       toast.success("Logo atualizado");
       setLogo(URL.createObjectURL(file));
+      return res;
     });
   }
 
@@ -1037,8 +1043,9 @@ function CompanyDialog({
               disabled={pending}
               onClick={() =>
                 run(async () => {
-                  await removeCompanyLogo(company.id);
-                  setLogo(null);
+                  const res = await removeCompanyLogo(company.id);
+                  if (!res?.error) setLogo(null);
+                  return res;
                 })
               }
               className="text-muted-foreground hover:text-[#ff5d5d] text-xs"
@@ -1089,10 +1096,10 @@ function TeamDialog({
 
   function save() {
     run(
-      async () => {
-        if (team) await updateTeam(team.id, { name, color });
-        else await createTeam(companyId, { name, color });
-      },
+      () =>
+        team
+          ? updateTeam(team.id, { name, color })
+          : createTeam(companyId, { name, color }),
       onClose,
     );
   }
@@ -1171,7 +1178,7 @@ function PickerDialog({
   hint?: string;
   options: { id: string; label: string; sub?: string }[];
   current: string[];
-  onSave: (ids: string[]) => Promise<unknown>;
+  onSave: (ids: string[]) => Promise<{ error?: string } | void>;
   onClose: () => void;
   empty?: string;
 }) {
@@ -1403,7 +1410,7 @@ function ConfirmDialog({
   title: string;
   body: string;
   confirmLabel: string;
-  onConfirm: () => Promise<unknown>;
+  onConfirm: () => Promise<{ error?: string } | void>;
   onClose: () => void;
 }) {
   const { pending, run } = useAct();
