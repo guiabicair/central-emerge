@@ -39,6 +39,59 @@ export async function setApprovalStatus(
   revalidatePath("/equipe/pessoas");
 }
 
+/**
+ * Exclui a pessoa DE VERDADE (auth.users + profiles, via cascade) — hoje só
+ * dava pra "suspender" (approval_status). Irreversível: histórico dela em
+ * tasks/clients/etc. fica com o campo de autor/responsável em branco (as
+ * telas já tratam id desconhecido como "—"), nunca é apagado.
+ *
+ * Antes do delete, zera as colunas com FK NO ACTION pra auth.users (sem
+ * isso o Postgres recusa o delete por violação de FK) e remove as poucas
+ * linhas de tabelas legadas (freelancers) cuja coluna é NOT NULL.
+ */
+export async function deletePersonCompletely(userId: string) {
+  await guard("equipe.approve_users");
+  const db = await createUntypedClient();
+
+  const nullifyTargets: [string, string][] = [
+    ["clients", "created_by"],
+    ["tasks", "created_by"],
+    ["tasks", "assigned_to"],
+    ["budgets", "created_by"],
+    ["courses", "created_by"],
+    ["task_assignees", "assigned_by"],
+    ["emerge_labs_products", "created_by"],
+    ["freelancers", "approved_by"],
+    ["freelancer_proposals", "reviewed_by"],
+    ["client_requests", "assigned_to"],
+    ["app_user_roles", "assigned_by"],
+    ["affiliate_point_requests", "reviewed_by"],
+    ["profiles", "approved_by"],
+  ];
+  for (const [table, column] of nullifyTargets) {
+    const { error } = await db.from(table).update({ [column]: null }).eq(column, userId);
+    if (error) throw new Error(`Falha limpando ${table}.${column}: ${error.message}`);
+  }
+
+  // colunas NOT NULL em tabelas legadas de freelancer — não dá pra nulificar,
+  // só remover a linha (não usadas na Central hoje).
+  const deleteTargets: [string, string][] = [
+    ["project_freelancer_invites", "invited_by"],
+    ["projects_freelancers", "created_by"],
+  ];
+  for (const [table, column] of deleteTargets) {
+    const { error } = await db.from(table).delete().eq(column, userId);
+    if (error) throw new Error(`Falha limpando ${table}.${column}: ${error.message}`);
+  }
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/equipe/pessoas");
+}
+
 export async function setUserRoles(userId: string, roleIds: string[]) {
   await guard("equipe.manage_roles");
   const supabase = await createUntypedClient();

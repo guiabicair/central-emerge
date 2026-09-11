@@ -4,7 +4,11 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import type { AppRoleWithPerms, TeamMember } from "@/lib/auth/roles";
-import { setApprovalStatus, setUserRoles } from "@/app/(app)/equipe/actions";
+import {
+  deletePersonCompletely,
+  setApprovalStatus,
+  setUserRoles,
+} from "@/app/(app)/equipe/actions";
 import { cn } from "@/lib/utils";
 
 function initials(name: string) {
@@ -180,6 +184,22 @@ export function PeopleTable({
                           Suspender
                         </button>
                       )}
+                      <button
+                        type="button"
+                        disabled={rowBusy}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Excluir "${nome}" (${m.email}) permanentemente da plataforma?\n\nIsso remove a conta de verdade (diferente de suspender) — ela não consegue mais logar e o e-mail fica livre pra um novo cadastro. O histórico dela (tasks, comentários etc.) fica, só sem o vínculo com a pessoa. Não dá pra desfazer.`,
+                            )
+                          )
+                            return;
+                          run(m.user_id, () => deletePersonCompletely(m.user_id));
+                        }}
+                        className="rounded-md border border-[#ff5d5d]/40 px-2.5 py-1 text-xs text-[#ff5d5d] hover:bg-[#ff5d5d]/10"
+                      >
+                        Excluir
+                      </button>
                     </div>
                   )}
                 </td>
