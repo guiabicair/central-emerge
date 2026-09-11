@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   ArrowDown,
   ArrowUp,
+  Bot,
   CalendarDays,
   CheckSquare,
   Columns3,
@@ -16,6 +18,7 @@ import {
   Plus,
   Rows3,
   Trash2,
+  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -61,7 +64,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { brtParts } from "@/lib/calendar";
+import type { CanvasSnapshot } from "@/lib/canvas/types";
 import { actionError, cn, formatDate } from "@/lib/utils";
+
+const TaskCanvas = dynamic(
+  () => import("@/components/tarefas/task-canvas").then((m) => m.TaskCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-ink-muted grid h-full place-items-center text-sm">
+        Carregando canvas…
+      </div>
+    ),
+  },
+);
 
 export interface TaskRow {
   id: string;
@@ -75,6 +91,7 @@ export interface TaskRow {
   dueDate: string | null;
   driveLink: string | null;
   figmaLink: string | null;
+  agentName: string | null;
   assignees: string[];
   assigneeNames: string[];
   subtasks: { id: string; title: string; done: boolean }[];
@@ -146,13 +163,14 @@ function clearDraft(id?: string) {
   }
 }
 
-type BoardView = "kanban" | "lista" | "calendario" | "cronograma";
+type BoardView = "kanban" | "lista" | "calendario" | "cronograma" | "nos";
 
 const VIEW_TABS: { id: BoardView; label: string; icon: typeof List }[] = [
   { id: "kanban", label: "Kanban", icon: KanbanSquare },
   { id: "lista", label: "Lista", icon: List },
   { id: "calendario", label: "Calendário", icon: CalendarDays },
   { id: "cronograma", label: "Cronograma", icon: Rows3 },
+  { id: "nos", label: "Nós", icon: Workflow },
 ];
 
 const PRIORITY: Record<
@@ -614,6 +632,12 @@ function Card({
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusPill color={prio.color}>{prio.label}</StatusPill>
+        {task.agentName && (
+          <span className="bg-data/12 text-data-text inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+            <Bot className="size-3" />
+            {task.agentName}
+          </span>
+        )}
         {task.archived && (
           <button
             type="button"
@@ -1071,6 +1095,7 @@ export function TasksBoard({
   currentUserId,
   canManage,
   loadError,
+  canvas,
 }: {
   tasks: TaskRow[];
   statuses: StatusCol[];
@@ -1081,6 +1106,7 @@ export function TasksBoard({
   currentUserId: string | null;
   canManage: boolean;
   loadError: string | null;
+  canvas: CanvasSnapshot;
 }) {
   const [editing, setEditing] = useState<TaskInput | null>(null);
   const [editingRow, setEditingRow] = useState<TaskRow | null>(null);
@@ -1319,6 +1345,11 @@ export function TasksBoard({
     setEditing(toInput(t));
   };
 
+  const openCreate = () => {
+    setEditingRow(null);
+    setEditing({ ...BLANK, status: fallbackCol });
+  };
+
   return (
     <>
       <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
@@ -1380,13 +1411,7 @@ export function TasksBoard({
               <Columns3 className="size-4" />
               Colunas
             </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingRow(null);
-                setEditing({ ...BLANK, status: fallbackCol });
-              }}
-            >
+            <Button size="sm" onClick={openCreate}>
               <Plus className="size-4" />
               Nova tarefa
             </Button>
@@ -1600,6 +1625,20 @@ export function TasksBoard({
         <TasksCalendar tasks={filteredTasks} statuses={cols} onOpenTask={openTask} />
       ) : view === "cronograma" ? (
         <TasksTimeline tasks={filteredTasks} statuses={cols} onOpenTask={openTask} />
+      ) : view === "nos" ? (
+        <div className="border-line min-h-0 flex-1 border-t">
+          <TaskCanvas
+            tasks={filteredTasks}
+            statuses={cols}
+            snapshot={canvas}
+            canManage={canManage}
+            onOpenTask={(id) => {
+              const t = tasks.find((x) => x.id === id);
+              if (t) openTask(t);
+            }}
+            onCreateTask={openCreate}
+          />
+        </div>
       ) : (
         <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
           {cols.map((col) => {

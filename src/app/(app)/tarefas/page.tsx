@@ -1,6 +1,7 @@
 import { Topbar } from "@/components/layout/topbar";
 import { TasksBoard, type TaskRow } from "@/components/tarefas/tasks-board";
 import { can } from "@/lib/auth/roles";
+import { getCanvasSnapshot } from "@/lib/canvas/queries";
 import { getUser } from "@/lib/supabase/auth";
 import { createClient, createUntypedClient } from "@/lib/supabase/server";
 
@@ -17,6 +18,7 @@ interface TaskDb {
   due_date: string | null;
   drive_link: string | null;
   figma_link: string | null;
+  agent_name: string | null;
 }
 
 interface SubtaskDb {
@@ -78,11 +80,12 @@ export default async function TarefasPage() {
     timeRes,
     templatesRes,
     canManage,
+    canvas,
   ] = await Promise.all([
     db
       .from("tasks")
       .select(
-        "id, title, description, briefing, status, priority, client_id, due_date, drive_link, figma_link",
+        "id, title, description, briefing, status, priority, client_id, due_date, drive_link, figma_link, agent_name",
       )
       .order("updated_at", { ascending: false }),
     supabase.from("task_assignees").select("task_id, user_id"),
@@ -117,6 +120,7 @@ export default async function TarefasPage() {
       .select("id, title, description, estimated_hours, priority")
       .order("created_at"),
     can("tarefas.manage"),
+    getCanvasSnapshot("tarefas"),
   ]);
 
   const loadError =
@@ -237,6 +241,7 @@ export default async function TarefasPage() {
     dueDate: t.due_date,
     driveLink: t.drive_link ?? null,
     figmaLink: t.figma_link ?? null,
+    agentName: t.agent_name ?? null,
     assignees: assigneesByTask.get(t.id) ?? [],
     assigneeNames: (assigneesByTask.get(t.id) ?? []).map(
       (u) => nameByUser.get(u) ?? "—",
@@ -283,7 +288,7 @@ export default async function TarefasPage() {
         description={
           loadError
             ? "Erro ao carregar — rode a migration 0007"
-            : "Kanban, lista, calendário e cronograma"
+            : "Kanban, lista, calendário, cronograma e nós"
         }
       />
       <TasksBoard
@@ -296,6 +301,7 @@ export default async function TarefasPage() {
         currentUserId={user?.id ?? null}
         canManage={canManage}
         loadError={loadError}
+        canvas={canvas}
       />
     </>
   );
