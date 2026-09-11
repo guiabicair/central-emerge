@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/sheet";
 import { brtParts } from "@/lib/calendar";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
+import { createClient } from "@/lib/supabase/client";
 import { actionError, cn, formatDate } from "@/lib/utils";
 
 const TaskCanvas = dynamic(
@@ -1123,6 +1124,66 @@ export function TasksBoard({
   >(null);
   const [bulkPending, startBulk] = useTransition();
   const [showArchived, setShowArchived] = useState(false);
+  const router = useRouter();
+
+  // outros agentes/terminais criam e atualizam tasks direto via RPC (fora do
+  // Next), então quem já está com /tarefas aberto não vê sem isso — refresca
+  // o board quando tasks/subtasks/task_assignees mudam no banco.
+  useEffect(() => {
+    const supabase = createClient();
+    let pending = false;
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const scheduleRefresh = () => {
+      if (pending) return;
+      pending = true;
+      setTimeout(() => {
+        pending = false;
+        router.refresh();
+      }, 400);
+    };
+
+    // getSession() garante que o token já foi lido do cookie e propagado pro
+    // client de realtime (supabase.realtime.setAuth) ANTES de inscrever o
+    // channel — sem isso a inscrição corre como anon e a RLS barra os eventos.
+    void supabase.auth.getSession().then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel("tarefas-sync")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "tasks" },
+          scheduleRefresh,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "subtasks" },
+          scheduleRefresh,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "task_assignees" },
+          scheduleRefresh,
+        )
+        .subscribe();
+    });
+
+    // rede/realtime pode falhar silenciosamente — poll leve como garantia,
+    // e refresca também quando a aba volta a ficar visível.
+    const poll = setInterval(() => router.refresh(), 20_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
