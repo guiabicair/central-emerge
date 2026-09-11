@@ -1,4 +1,5 @@
 import {
+  Bot,
   BookLock,
   CalendarDays,
   FileText,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/calendario", label: "Calendário", icon: CalendarDays, ready: true },
   { href: "/calendario-social", label: "Social", icon: Megaphone, ready: true },
   { href: "/equipe/pessoas", label: "Equipe", icon: Shield, ready: true },
+  { href: "/operacoes", label: "Operações", icon: Bot, ready: true },
   { href: "/recursos/acessos", label: "Recursos", icon: BookLock, ready: true },
   {
     href: "/configuracoes",
