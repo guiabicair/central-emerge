@@ -52,6 +52,13 @@ interface EntityCanvasProps {
   /** arestas derivadas de FK/regra — desenhadas, não persistidas, não deletáveis */
   derivedEdges?: DerivedEdge[];
   onOpenEntity?: (id: string) => void;
+  /**
+   * Hook chamado antes de persistir uma conexão manual. Retorne `false` para
+   * indicar que a conexão já foi tratada como uma ação de domínio (ex:
+   * atribuir responsável) e não deve virar uma aresta manual genérica.
+   * Retorne `true` (ou omita o prop) para manter o comportamento padrão.
+   */
+  onBeforeConnect?: (source: string, target: string) => boolean | Promise<boolean>;
 }
 
 const NO_DERIVED: DerivedEdge[] = [];
@@ -71,6 +78,7 @@ export function EntityCanvas({
   snapshot,
   derivedEdges = NO_DERIVED,
   onOpenEntity,
+  onBeforeConnect,
 }: EntityCanvasProps) {
   const { persistMove, addEdge, removeEdge } = useCanvasPersistence(
     board,
@@ -183,6 +191,7 @@ export function EntityCanvas({
         )
       )
         return;
+      if (onBeforeConnect && !(await onBeforeConnect(source, target))) return;
       const id = await addEdge(source, target);
       if (!id) return;
       manualIds.current.add(id);
@@ -199,7 +208,7 @@ export function EntityCanvas({
         },
       ]);
     },
-    [rfEdges, addEdge, setRfEdges, handleDeleteEdge],
+    [rfEdges, addEdge, setRfEdges, handleDeleteEdge, onBeforeConnect],
   );
 
   return (

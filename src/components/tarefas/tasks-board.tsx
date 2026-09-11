@@ -1630,6 +1630,7 @@ export function TasksBoard({
           <TaskCanvas
             tasks={filteredTasks}
             statuses={cols}
+            people={people}
             snapshot={canvas}
             canManage={canManage}
             onOpenTask={(id) => {

@@ -172,6 +172,21 @@ export async function moveTaskStatus(id: string, status: string) {
   revalidatePath("/tarefas");
 }
 
+/** Atribui uma task a uma pessoa — usado pelo drag-to-connect da view Nós. */
+export async function assignTaskToUser(taskId: string, userId: string) {
+  await guard();
+  const supabase = await createClient();
+  const user = await getUser();
+  const { error } = await supabase
+    .from("task_assignees")
+    .upsert(
+      { task_id: taskId, user_id: userId, assigned_by: user?.id ?? null },
+      { onConflict: "task_id,user_id", ignoreDuplicates: true },
+    );
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
 export async function deleteTask(id: string) {
   await guard();
   const supabase = await createClient();
