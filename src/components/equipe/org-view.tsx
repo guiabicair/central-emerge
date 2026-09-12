@@ -224,7 +224,12 @@ export function OrgView({
 
       {view === "nodes" ? (
         <div className="min-h-0 flex-1">
-          <OrgCanvas data={data} positions={canvasPositions} />
+          <OrgCanvas
+            data={data}
+            positions={canvasPositions}
+            canManage={canManage}
+            onDialog={setDialog}
+          />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -361,7 +366,7 @@ export function OrgView({
  * Tipos de dialog + contexto de render
  * ================================================================== */
 
-type DialogState =
+export type DialogState =
   | { kind: "company"; company: OrgCompany | null; parentId: string | null }
   | { kind: "team"; team: OrgTeam | null; companyId: string }
   | { kind: "team-members"; team: OrgTeam }

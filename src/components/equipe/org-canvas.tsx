@@ -9,6 +9,7 @@ import {
   Handle,
   MarkerType,
   MiniMap,
+  Panel,
   Position,
   ReactFlow,
   useEdgesState,
@@ -18,11 +19,13 @@ import {
   type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { Building2, Crown, Users } from "lucide-react";
+import { Building2, Crown, ImageUp, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import type { EffectiveRole, OrgData } from "@/lib/equipe/org-queries";
 import { saveOrgNodePosition } from "@/app/(app)/equipe/organizacao/actions";
+import type { DialogState } from "@/components/equipe/org-view";
+import { cn } from "@/lib/utils";
 
 import "@xyflow/react/dist/style.css";
 
@@ -43,6 +46,15 @@ interface CoData {
   counts: { teams: number; people: number; clients: number };
   roles: Chip[];
   childCount: number;
+  actions: {
+    onEdit: () => void;
+    onLogo: () => void;
+    onRoles: () => void;
+    onMembers: () => void;
+    onClients: () => void;
+    onAddTeam: () => void;
+    onDelete: () => void;
+  } | null;
   [k: string]: unknown;
 }
 interface TeamData {
@@ -52,6 +64,12 @@ interface TeamData {
   lead: string | null;
   members: number;
   roles: Chip[];
+  actions: {
+    onEdit: () => void;
+    onRoles: () => void;
+    onMembers: () => void;
+    onDelete: () => void;
+  } | null;
   [k: string]: unknown;
 }
 interface PersonData {
@@ -129,6 +147,50 @@ function RoleChips({ roles }: { roles: Chip[] }) {
   );
 }
 
+function NodeIconBtn({
+  title,
+  onClick,
+  danger,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "nodrag rounded p-1 text-[#8b918f] transition-colors hover:text-[#eef1f0]",
+        danger && "hover:text-[#ff5d5d]",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NodeTextBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="nodrag rounded border border-white/10 px-1.5 py-0.5 text-[9px] text-[#8b918f] transition-colors hover:text-[#eef1f0]"
+    >
+      {children}
+    </button>
+  );
+}
+
 function HoldingNode({ data }: NodeProps) {
   const d = data as CoData;
   return (
@@ -145,12 +207,22 @@ function HoldingNode({ data }: NodeProps) {
             {d.name.slice(0, 2).toUpperCase()}
           </span>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-semibold">{d.name}</div>
           <div className="text-[10px] text-[#8b918f]">
             holding · {d.childCount} {d.childCount === 1 ? "empresa" : "empresas"}
           </div>
         </div>
+        {d.actions && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <NodeIconBtn title="Editar" onClick={d.actions.onEdit}>
+              <Pencil className="size-3" />
+            </NodeIconBtn>
+            <NodeIconBtn title="Excluir" danger onClick={d.actions.onDelete}>
+              <Trash2 className="size-3" />
+            </NodeIconBtn>
+          </div>
+        )}
       </div>
     </Frame>
   );
@@ -184,6 +256,23 @@ function CompanyNode({ data }: NodeProps) {
           <span>{d.counts.clients} clientes</span>
         </div>
         <RoleChips roles={d.roles} />
+        {d.actions && (
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-white/10 pt-1.5">
+            <NodeIconBtn title="Editar empresa" onClick={d.actions.onEdit}>
+              <Pencil className="size-3" />
+            </NodeIconBtn>
+            <NodeIconBtn title="Logo" onClick={d.actions.onLogo}>
+              <ImageUp className="size-3" />
+            </NodeIconBtn>
+            <NodeTextBtn onClick={d.actions.onRoles}>papéis</NodeTextBtn>
+            <NodeTextBtn onClick={d.actions.onMembers}>pessoas</NodeTextBtn>
+            <NodeTextBtn onClick={d.actions.onClients}>clientes</NodeTextBtn>
+            <NodeTextBtn onClick={d.actions.onAddTeam}>+ time</NodeTextBtn>
+            <NodeIconBtn title="Excluir empresa" danger onClick={d.actions.onDelete}>
+              <Trash2 className="size-3" />
+            </NodeIconBtn>
+          </div>
+        )}
       </div>
     </Frame>
   );
@@ -209,6 +298,18 @@ function TeamNode({ data }: NodeProps) {
           </div>
         )}
         <RoleChips roles={d.roles} />
+        {d.actions && (
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-white/10 pt-1.5">
+            <NodeIconBtn title="Editar time" onClick={d.actions.onEdit}>
+              <Pencil className="size-3" />
+            </NodeIconBtn>
+            <NodeTextBtn onClick={d.actions.onRoles}>papéis</NodeTextBtn>
+            <NodeTextBtn onClick={d.actions.onMembers}>membros</NodeTextBtn>
+            <NodeIconBtn title="Excluir time" danger onClick={d.actions.onDelete}>
+              <Trash2 className="size-3" />
+            </NodeIconBtn>
+          </div>
+        )}
       </div>
     </Frame>
   );
@@ -323,9 +424,13 @@ function dagreLayout(
 export function OrgCanvas({
   data,
   positions,
+  canManage = false,
+  onDialog,
 }: {
   data: OrgData;
   positions: Record<string, { x: number; y: number }>;
+  canManage?: boolean;
+  onDialog?: (d: DialogState) => void;
 }) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
   const [rfEdges, setRfEdges] = useEdgesState<Edge>([]);
@@ -446,6 +551,18 @@ export function OrgCanvas({
         },
         roles: rolesByCompany.get(c.id) ?? [],
         childCount: childCount.get(c.id) ?? 0,
+        actions:
+          canManage && onDialog
+            ? {
+                onEdit: () => onDialog({ kind: "company", company: c, parentId: c.parent_id }),
+                onLogo: () => onDialog({ kind: "company", company: c, parentId: c.parent_id }),
+                onRoles: () => onDialog({ kind: "company-roles", company: c }),
+                onMembers: () => onDialog({ kind: "company-members", company: c }),
+                onClients: () => onDialog({ kind: "company-clients", company: c }),
+                onAddTeam: () => onDialog({ kind: "team", team: null, companyId: c.id }),
+                onDelete: () => onDialog({ kind: "delete-company", company: c }),
+              }
+            : null,
       };
       items.push({
         id: `co:${c.id}`,
@@ -490,6 +607,15 @@ export function OrgCanvas({
         lead: leadP ? leadP.full_name?.trim() || leadP.email : null,
         members: mem.length,
         roles: rolesByTeam.get(t.id) ?? [],
+        actions:
+          canManage && onDialog
+            ? {
+                onEdit: () => onDialog({ kind: "team", team: t, companyId: t.company_id }),
+                onRoles: () => onDialog({ kind: "team-roles", team: t }),
+                onMembers: () => onDialog({ kind: "team-members", team: t }),
+                onDelete: () => onDialog({ kind: "delete-team", team: t }),
+              }
+            : null,
       };
       items.push({
         id: `team:${t.id}`,
@@ -560,7 +686,7 @@ export function OrgCanvas({
     );
 
     return { items, edges, fallback };
-  }, [data]);
+  }, [data, canManage, onDialog]);
 
   useEffect(() => {
     setRfNodes(
@@ -643,6 +769,17 @@ export function OrgCanvas({
           className="!border-white/10 !bg-[#0f1112] [&_button]:!border-white/10 [&_button]:!bg-[#0f1112] [&_button]:!fill-white/70"
         />
         <MiniMap pannable zoomable maskColor="#05050699" className="!bg-[#0f1112]" />
+        {canManage && onDialog && (
+          <Panel position="top-right" className="!m-3">
+            <button
+              type="button"
+              onClick={() => onDialog({ kind: "company", company: null, parentId: null })}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#c9ff3f] px-3 py-1.5 text-xs font-semibold text-[#0a0b0c]"
+            >
+              <Plus className="size-3.5" /> Nova empresa
+            </button>
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );
