@@ -8,14 +8,19 @@ function googleEventToRow(e: GoogleEvent, userId: string) {
   const start = e.start?.dateTime ?? e.start?.date;
   const end = e.end?.dateTime ?? e.end?.date;
   if (!start) return null;
+  // attendees da tabela é uuid[] (pessoas internas) — convidados do Google são
+  // emails externos, não dá pra mapear 1:1, então viram uma linha na descrição.
+  const guestEmails = (e.attendees ?? []).map((a) => a.email).filter(Boolean);
+  const description = [e.description, guestEmails.length ? `Convidados: ${guestEmails.join(", ")}` : null]
+    .filter(Boolean)
+    .join("\n\n") || null;
   return {
     title: e.summary?.trim() || "(sem título)",
-    description: e.description ?? null,
+    description,
     start_date: new Date(start).toISOString(),
     end_date: end ? new Date(end).toISOString() : null,
     event_type: "meeting",
     location: e.location ?? null,
-    attendees: (e.attendees ?? []).map((a) => a.email),
     is_all_day: isAllDay,
     color: "blue",
     created_by: userId,

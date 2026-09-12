@@ -26,6 +26,10 @@ create policy google_calendar_connections_own on public.google_calendar_connecti
 alter table public.calendar_events add column if not exists google_event_id text;
 alter table public.calendar_events add column if not exists synced_from_google boolean not null default false;
 
-create unique index if not exists calendar_events_google_uidx
-  on public.calendar_events(created_by, google_event_id)
-  where google_event_id is not null;
+-- unique constraint (não índice parcial) — precisa ser assim pro upsert por
+-- ON CONFLICT funcionar via PostgREST. NULLs em google_event_id nunca colidem
+-- entre si, então eventos criados manualmente (sem google_event_id) não são
+-- afetados.
+alter table public.calendar_events
+  add constraint calendar_events_created_by_google_event_id_key
+  unique (created_by, google_event_id);
