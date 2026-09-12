@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
 import { exchangeCodeForTokens, fetchGoogleEmail } from "@/lib/google-calendar/oauth";
+import { syncEvents } from "@/lib/google-calendar/sync";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -43,9 +44,14 @@ export async function GET(request: Request) {
       { onConflict: "user_id" },
     );
     if (error) return fail(error.message);
+
+    // sincroniza na hora — sem isso a conexão fica parada até alguém clicar
+    // em "Sincronizar" manualmente, e o Guilherme não viu nada aparecer.
+    const count = await syncEvents(db, user.id, tokens.access_token, "primary");
+    return NextResponse.redirect(
+      `${origin}/configuracoes?google_connected=1&google_synced=${count}`,
+    );
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Erro desconhecido");
   }
-
-  return NextResponse.redirect(`${origin}/configuracoes?google_connected=1`);
 }

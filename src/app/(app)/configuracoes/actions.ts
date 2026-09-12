@@ -4,11 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
-import {
-  fetchUpcomingEvents,
-  refreshAccessToken,
-  type GoogleEvent,
-} from "@/lib/google-calendar/oauth";
+import { refreshAccessToken } from "@/lib/google-calendar/oauth";
+import { syncEvents } from "@/lib/google-calendar/sync";
 
 interface Connection {
   user_id: string;
@@ -34,28 +31,6 @@ async function getValidAccessToken(db: Awaited<ReturnType<typeof createUntypedCl
   return fresh.access_token;
 }
 
-function googleEventToRow(e: GoogleEvent, userId: string) {
-  const isAllDay = !!e.start?.date;
-  const start = e.start?.dateTime ?? e.start?.date;
-  const end = e.end?.dateTime ?? e.end?.date;
-  if (!start) return null;
-  return {
-    title: e.summary?.trim() || "(sem título)",
-    description: e.description ?? null,
-    start_date: new Date(start).toISOString(),
-    end_date: end ? new Date(end).toISOString() : null,
-    event_type: "meeting",
-    location: e.location ?? null,
-    attendees: (e.attendees ?? []).map((a) => a.email),
-    is_all_day: isAllDay,
-    color: "blue",
-    created_by: userId,
-    google_event_id: e.id,
-    synced_from_google: true,
-    updated_at: new Date().toISOString(),
-  };
-}
-
 /** Busca a conexão + puxa os eventos do Google Calendar pro calendar_events. */
 export async function syncGoogleCalendarNow() {
   const user = await getUser();
@@ -71,24 +46,11 @@ export async function syncGoogleCalendarNow() {
   if (!conn) throw new Error("Google Calendar não está conectado.");
 
   const accessToken = await getValidAccessToken(db, conn as Connection);
-  const events = await fetchUpcomingEvents(accessToken, (conn as Connection).calendar_id);
-  const rows = events.map((e) => googleEventToRow(e, user.id)).filter((r) => r !== null);
-
-  if (rows.length) {
-    const { error } = await db
-      .from("calendar_events")
-      .upsert(rows, { onConflict: "created_by,google_event_id" });
-    if (error) throw new Error(error.message);
-  }
-
-  await db
-    .from("google_calendar_connections")
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq("user_id", user.id);
+  const count = await syncEvents(db, user.id, accessToken, (conn as Connection).calendar_id);
 
   revalidatePath("/calendario");
   revalidatePath("/configuracoes");
-  return { count: rows.length };
+  return { count };
 }
 
 export async function disconnectGoogleCalendar() {

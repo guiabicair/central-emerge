@@ -178,8 +178,16 @@ export function SettingsView({
   useEffect(() => {
     const err = searchParams.get("google_error");
     const ok = searchParams.get("google_connected");
+    const synced = searchParams.get("google_synced");
     if (err) toast.error(decodeURIComponent(err));
-    if (ok) toast.success("Google Calendar conectado.");
+    if (ok) {
+      const n = Number(synced ?? 0);
+      toast.success(
+        n > 0
+          ? `Google Calendar conectado — ${n} evento(s) já sincronizado(s).`
+          : "Google Calendar conectado — nenhum evento nos próximos 90 dias.",
+      );
+    }
     if (err || ok) router.replace("/configuracoes");
   }, [searchParams, router]);
 
