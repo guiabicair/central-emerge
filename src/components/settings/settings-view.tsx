@@ -105,24 +105,18 @@ function GoogleCalendarRow({
 
   function sync() {
     startTransition(async () => {
-      try {
-        const { count } = await syncGoogleCalendarNow();
-        toast.success(`${count} evento(s) sincronizado(s).`);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Falha ao sincronizar.");
-      }
+      const res = await syncGoogleCalendarNow();
+      if (res.error) toast.error(res.error);
+      else toast.success(`${res.count ?? 0} evento(s) sincronizado(s).`);
     });
   }
 
   function disconnect() {
     if (!window.confirm("Desconectar o Google Calendar? Os eventos já importados continuam no calendário.")) return;
     startTransition(async () => {
-      try {
-        await disconnectGoogleCalendar();
-        toast.success("Desconectado.");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Falha ao desconectar.");
-      }
+      const res = await disconnectGoogleCalendar();
+      if (res?.error) toast.error(res.error);
+      else toast.success("Desconectado.");
     });
   }
 

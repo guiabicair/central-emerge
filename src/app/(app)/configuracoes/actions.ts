@@ -31,10 +31,15 @@ async function getValidAccessToken(db: Awaited<ReturnType<typeof createUntypedCl
   return fresh.access_token;
 }
 
-/** Busca a conexão + puxa os eventos do Google Calendar pro calendar_events. */
-export async function syncGoogleCalendarNow() {
+/**
+ * Busca a conexão + puxa os eventos do Google Calendar pro calendar_events.
+ * Retorna `{ error }` em vez de lançar — em produção o Next apaga a mensagem
+ * de exceptions de Server Action (React #441), então erro esperado sempre
+ * volta como dado (mesmo padrão do useAct() de equipe/org-view.tsx).
+ */
+export async function syncGoogleCalendarNow(): Promise<{ count?: number; error?: string }> {
   const user = await getUser();
-  if (!user) throw new Error("Sem sessão.");
+  if (!user) return { error: "Sem sessão." };
   const db = await createUntypedClient();
 
   const { data: conn, error: connErr } = await db
@@ -42,25 +47,28 @@ export async function syncGoogleCalendarNow() {
     .select("user_id, access_token, refresh_token, token_expires_at, calendar_id")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (connErr) throw new Error(connErr.message);
-  if (!conn) throw new Error("Google Calendar não está conectado.");
+  if (connErr) return { error: connErr.message };
+  if (!conn) return { error: "Google Calendar não está conectado." };
 
-  const accessToken = await getValidAccessToken(db, conn as Connection);
-  const count = await syncEvents(db, user.id, accessToken, (conn as Connection).calendar_id);
-
-  revalidatePath("/calendario");
-  revalidatePath("/configuracoes");
-  return { count };
+  try {
+    const accessToken = await getValidAccessToken(db, conn as Connection);
+    const count = await syncEvents(db, user.id, accessToken, (conn as Connection).calendar_id);
+    revalidatePath("/calendario");
+    revalidatePath("/configuracoes");
+    return { count };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Falha ao sincronizar." };
+  }
 }
 
-export async function disconnectGoogleCalendar() {
+export async function disconnectGoogleCalendar(): Promise<{ error?: string } | void> {
   const user = await getUser();
-  if (!user) throw new Error("Sem sessão.");
+  if (!user) return { error: "Sem sessão." };
   const db = await createUntypedClient();
   const { error } = await db
     .from("google_calendar_connections")
     .delete()
     .eq("user_id", user.id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath("/configuracoes");
 }
