@@ -1176,8 +1176,12 @@ export function TasksBoard({
     });
 
     // rede/realtime pode falhar silenciosamente — poll leve como garantia,
-    // e refresca também quando a aba volta a ficar visível.
-    const poll = setInterval(() => router.refresh(), 20_000);
+    // e refresca também quando a aba volta a ficar visível. Intervalo longo
+    // de propósito: cada refresh reprocessa ~10 queries em paralelo da page
+    // (tasks/subtasks/comments/deliveries/time_entries/social...) e re-
+    // renderiza a árvore inteira do board — poll curto demais competia com
+    // a interação do usuário e deixava a página sentindo lenta.
+    const poll = setInterval(() => router.refresh(), 120_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
