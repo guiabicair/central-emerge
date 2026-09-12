@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { Check, Play, Send, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,6 +15,7 @@ import {
   stopTimer,
   submitDelivery,
 } from "@/app/(app)/tarefas/detail-actions";
+import { STATUS_META } from "@/app/(app)/calendario-social/social-constants";
 import type { TaskRow } from "@/components/tarefas/tasks-board";
 import { Button } from "@/components/ui/button";
 import { actionError, formatDate } from "@/lib/utils";
@@ -36,7 +38,49 @@ export function TaskDetailSections({ task }: { task: TaskRow }) {
     <div className="border-line space-y-4 border-t pt-4">
       <TimerSection task={task} />
       <DeliveriesSection task={task} />
+      {task.linkedSocialPosts.length > 0 && (
+        <LinkedSocialPostsSection posts={task.linkedSocialPosts} />
+      )}
       <CommentsSection task={task} />
+    </div>
+  );
+}
+
+/* ------------------- Posts do Calendário Social ------------------- */
+
+function LinkedSocialPostsSection({
+  posts,
+}: {
+  posts: TaskRow["linkedSocialPosts"];
+}) {
+  return (
+    <div>
+      <span className="text-ink-muted text-[11px] font-semibold uppercase">
+        Calendário Social ({posts.length})
+      </span>
+      <div className="mt-1 space-y-1.5">
+        {posts.map((p) => {
+          const meta = STATUS_META[p.status] ?? {
+            label: p.status,
+            color: "var(--ink-muted)",
+          };
+          return (
+            <Link
+              key={p.id}
+              href={`/calendario-social?p=${p.projectId}&open=${p.id}`}
+              className="border-line hover:border-line-strong flex items-center justify-between gap-2 rounded-md border p-2.5 text-sm"
+            >
+              <span className="truncate">{p.title}</span>
+              <span
+                className="shrink-0 text-[11px] font-semibold"
+                style={{ color: meta.color }}
+              >
+                {meta.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

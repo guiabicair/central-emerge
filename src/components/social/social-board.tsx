@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { DragEvent } from "react";
 import {
@@ -109,6 +109,25 @@ export function SocialBoard({
     setDialog(null);
     setPendingId(null);
   }, [activeId]);
+
+  // abertura direta vinda de Tarefas (painel de detalhe → link do post) —
+  // /calendario-social?p=<projeto>&open=<post_id> já popa o dialog do post.
+  const openedFromQueryRef = useRef(false);
+  useEffect(() => {
+    if (openedFromQueryRef.current) return;
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (!openId) return;
+    const p = posts.find((pp) => pp.id === openId);
+    if (!p) return;
+    openedFromQueryRef.current = true;
+    setDialog({ kind: "post", date: p.date, postId: p.id });
+    const params = new URLSearchParams(window.location.search);
+    params.delete("open");
+    const qs = params.toString();
+    router.replace(`/calendario-social${qs ? `?${qs}` : ""}`, {
+      scroll: false,
+    });
+  }, [posts, router]);
 
   // post do dialog sempre re-derivado da lista viva (mostra arte recém-enviada
   // sem precisar fechar/reabrir).

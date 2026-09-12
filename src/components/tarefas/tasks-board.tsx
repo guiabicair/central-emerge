@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -122,6 +122,12 @@ export interface TaskRow {
     start: string;
     seconds: number;
     mine: boolean;
+  }[];
+  linkedSocialPosts: {
+    id: string;
+    title: string;
+    status: string;
+    projectId: string;
   }[];
 }
 
@@ -1405,6 +1411,21 @@ export function TasksBoard({
     setEditingRow(t);
     setEditing(toInput(t));
   };
+
+  // abertura direta vinda de outro módulo (ex: Calendário Social → "abrir
+  // tarefa ↗" leva pra /tarefas?open=<task_id> e já pop o painel de detalhe).
+  const openedFromQueryRef = useRef(false);
+  useEffect(() => {
+    if (openedFromQueryRef.current) return;
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (!openId) return;
+    const t = tasks.find((tk) => tk.id === openId);
+    if (!t) return;
+    openedFromQueryRef.current = true;
+    openTask(t);
+    router.replace("/tarefas", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, router]);
 
   const openCreate = () => {
     setEditingRow(null);

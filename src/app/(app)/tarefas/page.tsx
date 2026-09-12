@@ -62,6 +62,13 @@ interface TemplateDb {
   estimated_hours: number | null;
   priority: string;
 }
+interface SocialPostLinkDb {
+  id: string;
+  title: string;
+  status: string;
+  task_id: string;
+  project_id: string;
+}
 
 export default async function TarefasPage() {
   const supabase = await createClient();
@@ -141,6 +148,19 @@ export default async function TarefasPage() {
     /* coluna ainda não existe */
   }
 
+  // posts do Calendário Social linkados a alguma task (visão reversa no
+  // painel de detalhe) — degrada pra [] se o módulo social não existir.
+  let socialPosts: SocialPostLinkDb[] = [];
+  try {
+    const { data } = await db
+      .from("social_posts")
+      .select("id, title, status, task_id, project_id")
+      .not("task_id", "is", null);
+    socialPosts = (data ?? []) as SocialPostLinkDb[];
+  } catch {
+    /* calendário social ainda não existe neste ambiente */
+  }
+
   const statuses = (statusesRes.data ?? []).map((s) => ({
     id: s.id as string,
     name: s.name as string,
@@ -173,6 +193,18 @@ export default async function TarefasPage() {
   }
 
   const uname = (id: string | null) => (id ? (nameByUser.get(id) ?? "—") : "—");
+
+  const socialPostsByTask = new Map<string, TaskRow["linkedSocialPosts"]>();
+  for (const p of socialPosts) {
+    const arr = socialPostsByTask.get(p.task_id) ?? [];
+    arr.push({
+      id: p.id,
+      title: p.title,
+      status: p.status,
+      projectId: p.project_id,
+    });
+    socialPostsByTask.set(p.task_id, arr);
+  }
 
   const commentsByTask = new Map<string, TaskRow["comments"]>();
   for (const c of (commentsRes.data ?? []) as CommentDb[]) {
@@ -253,6 +285,7 @@ export default async function TarefasPage() {
     loggedSeconds: Math.round(loggedByTask.get(t.id) ?? 0),
     activeTimer: activeTimerByTask.get(t.id) ?? null,
     timeIntervals: intervalsByTask.get(t.id) ?? [],
+    linkedSocialPosts: socialPostsByTask.get(t.id) ?? [],
   }));
 
   const people = (profilesRes.data ?? []).map((p) => ({

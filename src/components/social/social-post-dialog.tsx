@@ -337,7 +337,7 @@ export function PostDialog({
             </select>
             {linkedTask && (
               <Link
-                href="/tarefas"
+                href={`/tarefas?open=${linkedTask.id}`}
                 className="text-data-text mt-1 inline-block text-[11px] hover:underline"
               >
                 abrir tarefa ↗
