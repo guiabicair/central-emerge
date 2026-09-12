@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
   CreditCard,
@@ -8,6 +9,7 @@ import {
   Info,
   Moon,
   Palette,
+  RefreshCw,
   Sparkles,
   Sun,
   User,
@@ -15,11 +17,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  disconnectGoogleCalendar,
+  syncGoogleCalendarNow,
+} from "@/app/(app)/configuracoes/actions";
 import { StatusPill } from "@/components/status-pill";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { TEAM } from "@/lib/mock-data";
-import { cn, initials } from "@/lib/utils";
+import { cn, formatDate, initials } from "@/lib/utils";
 
 const SECTIONS = [
   { id: "perfil", label: "Perfil", icon: User },
@@ -90,8 +96,92 @@ function IntegrationRow({
   );
 }
 
-export function SettingsView() {
+function GoogleCalendarRow({
+  googleCalendar,
+}: {
+  googleCalendar: { connected: boolean; email: string | null; lastSyncedAt: string | null };
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function sync() {
+    startTransition(async () => {
+      try {
+        const { count } = await syncGoogleCalendarNow();
+        toast.success(`${count} evento(s) sincronizado(s).`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Falha ao sincronizar.");
+      }
+    });
+  }
+
+  function disconnect() {
+    if (!window.confirm("Desconectar o Google Calendar? Os eventos já importados continuam no calendário.")) return;
+    startTransition(async () => {
+      try {
+        await disconnectGoogleCalendar();
+        toast.success("Desconectado.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Falha ao desconectar.");
+      }
+    });
+  }
+
+  return (
+    <div className="border-border flex items-center justify-between gap-3 rounded-xl border p-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-lg">
+          <CalendarDays className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="text-sm font-medium">Google Calendar</div>
+          <div className="text-muted-foreground truncate text-xs">
+            {googleCalendar.connected
+              ? `${googleCalendar.email ?? "conectado"}${
+                  googleCalendar.lastSyncedAt
+                    ? ` · sincronizado ${formatDate(googleCalendar.lastSyncedAt)}`
+                    : " · nunca sincronizado"
+                }`
+              : "Puxa suas reuniões pro /calendario."}
+          </div>
+        </div>
+      </div>
+      {googleCalendar.connected ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="xs" variant="outline" disabled={pending} onClick={sync}>
+            <RefreshCw className="size-3.5" /> Sincronizar
+          </Button>
+          <Button size="xs" variant="ghost" disabled={pending} onClick={disconnect}>
+            Desconectar
+          </Button>
+        </div>
+      ) : (
+        <a
+          href="/api/google-calendar/authorize"
+          className={buttonVariants({ variant: "outline", size: "xs" })}
+        >
+          Conectar
+        </a>
+      )}
+    </div>
+  );
+}
+
+export function SettingsView({
+  googleCalendar,
+}: {
+  googleCalendar: { connected: boolean; email: string | null; lastSyncedAt: string | null };
+}) {
   const [active, setActive] = useState<SectionId>("perfil");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const err = searchParams.get("google_error");
+    const ok = searchParams.get("google_connected");
+    if (err) toast.error(decodeURIComponent(err));
+    if (ok) toast.success("Google Calendar conectado.");
+    if (err || ok) router.replace("/configuracoes");
+  }, [searchParams, router]);
 
   const [nome, setNome] = useState("Equipe Emerge");
   const [email, setEmail] = useState("contato.emergetech@gmail.com");
@@ -209,13 +299,7 @@ export function SettingsView() {
                 ainda falta conectar.
               </p>
               <div className="space-y-2">
-                <IntegrationRow
-                  icon={CalendarDays}
-                  nome="Google Calendar"
-                  conectado={false}
-                >
-                  Requer configuração OAuth.
-                </IntegrationRow>
+                <GoogleCalendarRow googleCalendar={googleCalendar} />
                 <IntegrationRow
                   icon={HardDrive}
                   nome="Google Drive"
