@@ -37,6 +37,8 @@ export interface CanvasEntityNode {
   connectable?: boolean;
   /** true pros nós que representam uma entidade real (tarefa, lead) — ganham o atalho "renomear". */
   renamable?: boolean;
+  /** presente (true/false) = o nó ganha o atalho de colapsar/expandir seus filhos; o valor é o estado atual. */
+  collapsed?: boolean;
 }
 
 export interface DerivedEdge {
@@ -59,6 +61,8 @@ interface EntityCanvasProps {
   onOpenEntity?: (id: string) => void;
   /** atalho de renomear (botão de lápis) pros nós marcados como `renamable` — normalmente o mesmo handler de `onOpenEntity`. */
   onRenameEntity?: (id: string) => void;
+  /** atalho de colapsar/expandir pros nós que têm `collapsed` definido (true ou false). */
+  onToggleCollapse?: (id: string) => void;
   /**
    * Hook chamado antes de persistir uma conexão manual. Retorne `false` para
    * indicar que a conexão já foi tratada como uma ação de domínio (ex:
@@ -86,6 +90,7 @@ export function EntityCanvas({
   derivedEdges = NO_DERIVED,
   onOpenEntity,
   onRenameEntity,
+  onToggleCollapse,
   onBeforeConnect,
 }: EntityCanvasProps) {
   const { persistMove, persistColor, addEdge, removeEdge } = useCanvasPersistence(
@@ -110,6 +115,10 @@ export function EntityCanvas({
   const onRenameRef = useRef(onRenameEntity);
   onRenameRef.current = onRenameEntity;
   const renameStable = useRef((id: string) => onRenameRef.current?.(id)).current;
+  // callback de colapsar — via ref pelo mesmo motivo do onOpen acima.
+  const onCollapseRef = useRef(onToggleCollapse);
+  onCollapseRef.current = onToggleCollapse;
+  const collapseStable = useRef((id: string) => onCollapseRef.current?.(id)).current;
 
   const handleColorChange = useCallback(
     (entityId: string, color: string | null) => {
@@ -164,6 +173,8 @@ export function EntityCanvas({
           color: coloredOverride.current[n.id] ?? snapshot.colors[n.id] ?? null,
           onColorChange: colorStable,
           onRename: n.renamable ? renameStable : undefined,
+          collapsed: n.collapsed,
+          onToggleCollapse: n.collapsed !== undefined ? collapseStable : undefined,
         },
       })),
     );
@@ -175,6 +186,7 @@ export function EntityCanvas({
     openStable,
     colorStable,
     renameStable,
+    collapseStable,
     canManage,
     setRfNodes,
   ]);

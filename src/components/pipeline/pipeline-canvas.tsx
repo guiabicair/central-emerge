@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { colDot, colLabel, type StatusCol } from "@/app/(app)/pipeline/lead-constants";
 import { EntityCanvas } from "@/components/canvas/entity-canvas";
@@ -29,6 +29,17 @@ export function PipelineCanvas({
     [statuses],
   );
 
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
+  const toggleStageCollapse = (id: string) => {
+    const name = id.startsWith("__stage_") ? id.slice("__stage_".length) : id;
+    setCollapsedStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
   const { nodes, fallbackLayout } = useMemo(() => {
     const colIndex = new Map(cols.map((c, i) => [c.name, i]));
     const perStage: Record<string, number> = {};
@@ -36,12 +47,14 @@ export function PipelineCanvas({
 
     const headerNodes = cols.map((c, i) => {
       const id = `__stage_${c.name}`;
+      const collapsed = collapsedStages.has(c.name);
       fallbackLayout[id] = { x: i * COL_W, y: -90 };
       const count = leads.filter((l) => l.status === c.name).length;
       return {
         id,
         draggable: false,
         connectable: false,
+        collapsed,
         body: (
           <div className="flex w-[224px] items-center gap-2 rounded-lg border border-white/10 bg-[#1b1e20] px-3 py-2">
             <span
@@ -57,7 +70,7 @@ export function PipelineCanvas({
       };
     });
 
-    const nodes = leads.map((lead) => {
+    const nodes = leads.filter((l) => !collapsedStages.has(l.status)).map((lead) => {
       const col = colIndex.get(lead.status) ?? 0;
       const row = (perStage[lead.status] = (perStage[lead.status] ?? 0) + 1) - 1;
       fallbackLayout[String(lead.id)] = { x: col * COL_W, y: row * ROW_H };
@@ -100,7 +113,7 @@ export function PipelineCanvas({
     });
 
     return { nodes: [...headerNodes, ...nodes], fallbackLayout };
-  }, [leads, cols]);
+  }, [leads, cols, collapsedStages]);
 
   return (
     <EntityCanvas
@@ -111,6 +124,7 @@ export function PipelineCanvas({
       snapshot={snapshot}
       onOpenEntity={(id) => onOpenLead(Number(id))}
       onRenameEntity={(id) => onOpenLead(Number(id))}
+      onToggleCollapse={toggleStageCollapse}
     />
   );
 }

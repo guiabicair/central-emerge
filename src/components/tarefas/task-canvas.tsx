@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dagre from "@dagrejs/dagre";
-import { Bot, Building2, Eye, EyeOff, Plus, User } from "lucide-react";
+import { Bot, Building2, ChevronDown, ChevronRight, Eye, EyeOff, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
 import { assignTaskToUser } from "@/app/(app)/tarefas/actions";
@@ -91,6 +91,15 @@ export function TaskCanvas({
   const [showOrphans, setShowOrphans] = useState(false);
   const [hideDone, setHideDone] = useState(true);
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
+  const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set());
+
+  const toggleCollapsed = (clientRef: string) =>
+    setCollapsedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientRef)) next.delete(clientRef);
+      else next.add(clientRef);
+      return next;
+    });
 
   const doneCount = useMemo(
     () => tasks.filter((t) => DONE_STATUSES.has(t.status)).length,
@@ -119,7 +128,12 @@ export function TaskCanvas({
 
     const visibleTasks: TaskRow[] = [];
     const moreNodes: { id: string; clientRef: string; hiddenCount: number }[] = [];
+    const collapsedCounts = new Map<string, number>();
     for (const [clientRef, branchTasks] of branches) {
+      if (collapsedClients.has(clientRef)) {
+        collapsedCounts.set(clientRef, branchTasks.length);
+        continue;
+      }
       if (expandedBranches.has(clientRef) || branchTasks.length <= TASKS_PER_BRANCH) {
         visibleTasks.push(...branchTasks);
       } else {
@@ -132,9 +146,10 @@ export function TaskCanvas({
       }
     }
 
-    const taskNodes = visibleTasks.map((task) => {
-      const statusCol = cols.get(task.status);
-
+    // Registra pessoa/agente/cliente e a aresta responsável→cliente pra TODA
+    // task base — mesmo as escondidas por colapso ou pelo cap "+N mais" — pra
+    // colapsar um cliente não fazer o nó dele (ou o responsável) desaparecer.
+    for (const task of baseTasks) {
       const responsibleRefs = task.assignees.map((uid) => {
         usedPersonIds.add(uid);
         return `${PERSON_PREFIX}${uid}`;
@@ -155,6 +170,11 @@ export function TaskCanvas({
       for (const ref of responsibleRefs) {
         derivedEdges.push({ id: `rc:${ref}:${clientRef}`, source: ref, target: clientRef });
       }
+    }
+
+    const taskNodes = visibleTasks.map((task) => {
+      const statusCol = cols.get(task.status);
+      const clientRef = task.clientId ? `${CLIENT_PREFIX}${task.clientId}` : NONE_CLIENT;
       derivedEdges.push({ id: `ct:${clientRef}:${task.id}`, source: clientRef, target: task.id });
 
       return {
@@ -276,26 +296,44 @@ export function TaskCanvas({
       ),
     }));
 
-    const clientNodes = [...clientOf.entries()].map(([id, label]) => ({
-      id,
-      body: (
-        <div className="flex w-[180px] items-center gap-2 rounded-lg border border-white/10 bg-[#141719] px-3 py-2.5">
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
-            <Building2 className="size-3.5 text-[#eef1f0]" />
-          </span>
-          <span className="truncate text-[12px] font-medium text-[#eef1f0]">{label}</span>
-        </div>
-      ),
-    }));
+    const clientNodes = [...clientOf.entries()].map(([id, label]) => {
+      const collapsed = collapsedClients.has(id);
+      const hiddenN = collapsedCounts.get(id) ?? 0;
+      return {
+        id,
+        collapsed,
+        body: (
+          <div className="flex w-[180px] items-center gap-2 rounded-lg border border-white/10 bg-[#141719] px-3 py-2.5">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
+              <Building2 className="size-3.5 text-[#eef1f0]" />
+            </span>
+            <span className="truncate text-[12px] font-medium text-[#eef1f0]">{label}</span>
+            {collapsed && (
+              <span className="ml-auto shrink-0 rounded-full bg-white/10 px-1.5 text-[10px] text-[#8b918f]">
+                {hiddenN}
+              </span>
+            )}
+          </div>
+        ),
+      };
+    });
     if (needsNoneClient) {
+      const collapsed = collapsedClients.has(NONE_CLIENT);
+      const hiddenN = collapsedCounts.get(NONE_CLIENT) ?? 0;
       clientNodes.push({
         id: NONE_CLIENT,
+        collapsed,
         body: (
           <div className="flex w-[180px] items-center gap-2 rounded-lg border border-dashed border-white/15 bg-[#141719]/60 px-3 py-2.5">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
               <Building2 className="size-3.5 text-[#8b918f]" />
             </span>
             <span className="truncate text-[12px] text-[#8b918f]">Sem cliente</span>
+            {collapsed && (
+              <span className="ml-auto shrink-0 rounded-full bg-white/10 px-1.5 text-[10px] text-[#8b918f]">
+                {hiddenN}
+              </span>
+            )}
           </div>
         ),
       });
@@ -312,7 +350,7 @@ export function TaskCanvas({
     const fallbackLayout = dagreLayout(layoutItems, derivedEdges);
 
     return { nodes: allNodes, fallbackLayout, derivedEdges, orphanCount };
-  }, [tasks, cols, people, showOrphans, hideDone, expandedBranches]);
+  }, [tasks, cols, people, showOrphans, hideDone, expandedBranches, collapsedClients]);
 
   const handleConnect = async (source: string, target: string) => {
     // só task ↔ pessoa vira atribuição de verdade; o resto continua anotação livre.
@@ -374,6 +412,7 @@ export function TaskCanvas({
         derivedEdges={derivedEdges}
         onOpenEntity={handleOpenNode}
         onRenameEntity={handleOpenNode}
+        onToggleCollapse={toggleCollapsed}
         onBeforeConnect={handleConnect}
       />
       <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2">

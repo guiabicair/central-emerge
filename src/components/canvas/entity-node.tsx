@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Palette, Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, Palette, Pencil } from "lucide-react";
 
 import { NODE_COLORS } from "@/lib/canvas/types";
 
@@ -20,6 +20,9 @@ export interface EntityNodeData {
    * com um afford explícito em vez de depender do clique no corpo do nó.
    */
   onRename?: (id: string) => void;
+  /** presente = o nó pode ser colapsado (esconde os filhos); `collapsed` diz o estado atual. */
+  onToggleCollapse?: (id: string) => void;
+  collapsed?: boolean;
   [key: string]: unknown;
 }
 
@@ -58,8 +61,25 @@ export function EntityNode({ id, data }: NodeProps) {
         />
       )}
 
-      {d.canManage && (d.onColorChange || d.onRename) && (
+      {d.canManage && (d.onColorChange || d.onRename || d.onToggleCollapse) && (
         <div className="nodrag absolute -top-2 -right-2 z-10 flex items-center gap-1">
+          {d.onToggleCollapse && (
+            <button
+              type="button"
+              title={d.collapsed ? "Expandir" : "Colapsar"}
+              onClick={(e) => {
+                e.stopPropagation();
+                d.onToggleCollapse?.(id);
+              }}
+              className="flex size-5 items-center justify-center rounded-full border border-white/15 bg-[#141719] text-[#8b918f] opacity-70 shadow-sm transition-opacity hover:opacity-100 hover:text-[#eef1f0]"
+            >
+              {d.collapsed ? (
+                <ChevronRight className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              )}
+            </button>
+          )}
           {d.onRename && (
             <button
               type="button"
