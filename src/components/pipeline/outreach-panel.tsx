@@ -40,8 +40,15 @@ function Card({ row }: { row: OutreachRow }) {
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState(row.subject);
   const [body, setBody] = useState(row.body);
+  const [confirmingReject, setConfirmingReject] = useState(false);
   const [pending, start] = useTransition();
   const meta = STATUS_META[row.status];
+
+  function openEdit() {
+    setSubject(row.subject);
+    setBody(row.body);
+    setEditing(true);
+  }
 
   function run(fn: () => Promise<unknown>) {
     start(async () => {
@@ -83,7 +90,15 @@ function Card({ row }: { row: OutreachRow }) {
             className="border-line-strong focus:border-data w-full resize-none rounded-md border bg-transparent p-2.5 text-sm outline-none"
           />
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSubject(row.subject);
+                setBody(row.body);
+                setEditing(false);
+              }}
+            >
               Cancelar
             </Button>
             <Button
@@ -113,7 +128,7 @@ function Card({ row }: { row: OutreachRow }) {
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {row.status === "draft" && (
             <>
-              <Button variant="outline" size="xs" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="xs" onClick={openEdit}>
                 <Pencil className="size-3" />
                 Editar
               </Button>
@@ -129,7 +144,7 @@ function Card({ row }: { row: OutreachRow }) {
                 variant="ghost"
                 size="xs"
                 disabled={pending}
-                onClick={() => run(() => rejectOutreachMessage(row.id))}
+                onClick={() => setConfirmingReject(true)}
               >
                 <X className="size-3" />
                 Rejeitar
@@ -157,6 +172,36 @@ function Card({ row }: { row: OutreachRow }) {
               Enviado em {new Date(row.sentAt).toLocaleString("pt-BR")}
             </span>
           )}
+        </div>
+      )}
+
+      {confirmingReject && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="border-line bg-surface w-full max-w-sm rounded-xl border p-5">
+            <h3 className="text-sm font-semibold">Rejeitar rascunho de {row.empresa}?</h3>
+            <p className="text-ink-muted mt-1 text-sm">
+              Dá pra reabrir como rascunho depois, se mudar de ideia.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingReject(false)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  run(async () => {
+                    await rejectOutreachMessage(row.id);
+                    setConfirmingReject(false);
+                  })
+                }
+              >
+                <X className="size-3.5" />
+                Rejeitar
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
