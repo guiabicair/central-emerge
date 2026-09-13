@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { colDot, type StatusCol } from "@/app/(app)/pipeline/lead-constants";
+import { colDot, colLabel, type StatusCol } from "@/app/(app)/pipeline/lead-constants";
 import { EntityCanvas } from "@/components/canvas/entity-canvas";
 import type { LeadRow } from "@/components/pipeline/pipeline-board";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
@@ -33,6 +33,29 @@ export function PipelineCanvas({
     const colIndex = new Map(cols.map((c, i) => [c.name, i]));
     const perStage: Record<string, number> = {};
     const fallbackLayout: Record<string, { x: number; y: number }> = {};
+
+    const headerNodes = cols.map((c, i) => {
+      const id = `__stage_${c.name}`;
+      fallbackLayout[id] = { x: i * COL_W, y: -90 };
+      const count = leads.filter((l) => l.status === c.name).length;
+      return {
+        id,
+        draggable: false,
+        connectable: false,
+        body: (
+          <div className="flex w-[224px] items-center gap-2 rounded-lg border border-white/10 bg-[#1b1e20] px-3 py-2">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: colDot(c.color) }}
+            />
+            <span className="truncate text-[12px] font-semibold text-[#eef1f0]">
+              {colLabel(c.name)}
+            </span>
+            <span className="ml-auto text-[11px] text-[#8b918f]">{count}</span>
+          </div>
+        ),
+      };
+    });
 
     const nodes = leads.map((lead) => {
       const col = colIndex.get(lead.status) ?? 0;
@@ -75,7 +98,7 @@ export function PipelineCanvas({
       };
     });
 
-    return { nodes, fallbackLayout };
+    return { nodes: [...headerNodes, ...nodes], fallbackLayout };
   }, [leads, cols]);
 
   return (

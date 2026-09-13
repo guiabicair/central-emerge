@@ -32,6 +32,9 @@ const edgeTypes = { deletable: DeletableEdge };
 export interface CanvasEntityNode {
   id: string;
   body: ReactNode;
+  /** false pra nós decorativos (ex: cabeçalho de coluna) — não arrasta, não conecta. */
+  draggable?: boolean;
+  connectable?: boolean;
 }
 
 export interface DerivedEdge {
@@ -122,6 +125,9 @@ export function EntityCanvas({
           draggedPos.current[n.id] ??
           snapshot.positions[n.id] ??
           fallbackLayout[n.id] ?? { x: 0, y: 0 },
+        draggable: n.draggable ?? true,
+        connectable: n.connectable ?? true,
+        selectable: n.draggable ?? true,
         data: { body: n.body, onOpen: openStable },
       })),
     );
