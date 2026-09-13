@@ -159,6 +159,7 @@ export function TaskCanvas({
 
       return {
         id: task.id,
+        renamable: true,
         body: (
           <div className="w-[224px] rounded-xl border border-white/10 bg-[#141719] px-3 py-2.5">
             <div className="flex items-center gap-2">
@@ -372,6 +373,7 @@ export function TaskCanvas({
         snapshot={snapshot}
         derivedEdges={derivedEdges}
         onOpenEntity={handleOpenNode}
+        onRenameEntity={handleOpenNode}
         onBeforeConnect={handleConnect}
       />
       <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2">

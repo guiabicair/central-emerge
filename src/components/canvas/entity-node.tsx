@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Palette } from "lucide-react";
+import { Palette, Pencil } from "lucide-react";
 
 import { NODE_COLORS } from "@/lib/canvas/types";
 
@@ -14,6 +14,12 @@ export interface EntityNodeData {
   canManage?: boolean;
   color?: string | null;
   onColorChange?: (id: string, color: string | null) => void;
+  /**
+   * Nós que representam uma entidade real (tarefa, lead) podem expor um
+   * atalho de "renomear" — abre o mesmo editor da entidade (onOpen), só que
+   * com um afford explícito em vez de depender do clique no corpo do nó.
+   */
+  onRename?: (id: string) => void;
   [key: string]: unknown;
 }
 
@@ -52,19 +58,34 @@ export function EntityNode({ id, data }: NodeProps) {
         />
       )}
 
-      {d.canManage && d.onColorChange && (
-        <div className="nodrag absolute -top-2 -right-2 z-10">
-          <button
-            type="button"
-            title="Recolorir nó"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPickerOpen((v) => !v);
-            }}
-            className="flex size-5 items-center justify-center rounded-full border border-white/15 bg-[#141719] text-[#8b918f] opacity-70 shadow-sm transition-opacity hover:opacity-100 hover:text-[#eef1f0]"
-          >
-            <Palette className="size-3" />
-          </button>
+      {d.canManage && (d.onColorChange || d.onRename) && (
+        <div className="nodrag absolute -top-2 -right-2 z-10 flex items-center gap-1">
+          {d.onRename && (
+            <button
+              type="button"
+              title="Renomear"
+              onClick={(e) => {
+                e.stopPropagation();
+                d.onRename?.(id);
+              }}
+              className="flex size-5 items-center justify-center rounded-full border border-white/15 bg-[#141719] text-[#8b918f] opacity-70 shadow-sm transition-opacity hover:opacity-100 hover:text-[#eef1f0]"
+            >
+              <Pencil className="size-3" />
+            </button>
+          )}
+          {d.onColorChange && (
+            <button
+              type="button"
+              title="Recolorir nó"
+              onClick={(e) => {
+                e.stopPropagation();
+                setPickerOpen((v) => !v);
+              }}
+              className="flex size-5 items-center justify-center rounded-full border border-white/15 bg-[#141719] text-[#8b918f] opacity-70 shadow-sm transition-opacity hover:opacity-100 hover:text-[#eef1f0]"
+            >
+              <Palette className="size-3" />
+            </button>
+          )}
           {pickerOpen && (
             <div
               className="absolute top-6 right-0 flex items-center gap-1 rounded-lg border border-white/10 bg-[#0f1112] p-1.5 shadow-lg"

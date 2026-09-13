@@ -65,6 +65,7 @@ export function PipelineCanvas({
 
       return {
         id: String(lead.id),
+        renamable: true,
         body: (
           <div className="w-[224px] rounded-xl border border-white/10 bg-[#141719] px-3 py-2.5">
             <div className="flex items-center gap-2">
@@ -109,6 +110,7 @@ export function PipelineCanvas({
       fallbackLayout={fallbackLayout}
       snapshot={snapshot}
       onOpenEntity={(id) => onOpenLead(Number(id))}
+      onRenameEntity={(id) => onOpenLead(Number(id))}
     />
   );
 }

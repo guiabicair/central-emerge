@@ -35,6 +35,8 @@ export interface CanvasEntityNode {
   /** false pra nós decorativos (ex: cabeçalho de coluna) — não arrasta, não conecta. */
   draggable?: boolean;
   connectable?: boolean;
+  /** true pros nós que representam uma entidade real (tarefa, lead) — ganham o atalho "renomear". */
+  renamable?: boolean;
 }
 
 export interface DerivedEdge {
@@ -55,6 +57,8 @@ interface EntityCanvasProps {
   /** arestas derivadas de FK/regra — desenhadas, não persistidas, não deletáveis */
   derivedEdges?: DerivedEdge[];
   onOpenEntity?: (id: string) => void;
+  /** atalho de renomear (botão de lápis) pros nós marcados como `renamable` — normalmente o mesmo handler de `onOpenEntity`. */
+  onRenameEntity?: (id: string) => void;
   /**
    * Hook chamado antes de persistir uma conexão manual. Retorne `false` para
    * indicar que a conexão já foi tratada como uma ação de domínio (ex:
@@ -81,6 +85,7 @@ export function EntityCanvas({
   snapshot,
   derivedEdges = NO_DERIVED,
   onOpenEntity,
+  onRenameEntity,
   onBeforeConnect,
 }: EntityCanvasProps) {
   const { persistMove, persistColor, addEdge, removeEdge } = useCanvasPersistence(
@@ -101,6 +106,10 @@ export function EntityCanvas({
   const onOpenRef = useRef(onOpenEntity);
   onOpenRef.current = onOpenEntity;
   const openStable = useRef((id: string) => onOpenRef.current?.(id)).current;
+  // callback de renomear — via ref pelo mesmo motivo do onOpen acima.
+  const onRenameRef = useRef(onRenameEntity);
+  onRenameRef.current = onRenameEntity;
+  const renameStable = useRef((id: string) => onRenameRef.current?.(id)).current;
 
   const handleColorChange = useCallback(
     (entityId: string, color: string | null) => {
@@ -154,6 +163,7 @@ export function EntityCanvas({
           canManage,
           color: coloredOverride.current[n.id] ?? snapshot.colors[n.id] ?? null,
           onColorChange: colorStable,
+          onRename: n.renamable ? renameStable : undefined,
         },
       })),
     );
@@ -164,6 +174,7 @@ export function EntityCanvas({
     fallbackLayout,
     openStable,
     colorStable,
+    renameStable,
     canManage,
     setRfNodes,
   ]);
