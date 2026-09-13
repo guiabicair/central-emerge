@@ -232,8 +232,8 @@ export function EntityCanvas({
         nodesConnectable={canManage}
         elementsSelectable
         fitView
-        fitViewOptions={{ padding: 0.2, minZoom: 0.55, maxZoom: 1 }}
-        minZoom={0.2}
+        fitViewOptions={{ padding: 0.2, minZoom: 0.1, maxZoom: 1 }}
+        minZoom={0.1}
         maxZoom={2}
         proOptions={{ hideAttribution: false }}
         className="bg-[#050506]"
