@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dagre from "@dagrejs/dagre";
-import { Bot, Building2, Plus, User } from "lucide-react";
+import { Bot, Building2, Eye, EyeOff, Plus, User } from "lucide-react";
 import { toast } from "sonner";
 
 import { assignTaskToUser } from "@/app/(app)/tarefas/actions";
@@ -80,7 +80,9 @@ export function TaskCanvas({
     [statuses],
   );
 
-  const { nodes, fallbackLayout, derivedEdges } = useMemo(() => {
+  const [showOrphans, setShowOrphans] = useState(false);
+
+  const { nodes, fallbackLayout, derivedEdges, orphanCount } = useMemo(() => {
     const derivedEdges: DerivedEdge[] = [];
     const usedPersonIds = new Set<string>();
     const usedAgentNames = new Set<string>();
@@ -152,26 +154,44 @@ export function TaskCanvas({
       };
     });
 
-    const personNodes = people.map((p) => {
-      const id = `${PERSON_PREFIX}${p.id}`;
-      const active = usedPersonIds.has(p.id);
-      return {
-        id,
-        body: (
-          <div
-            className={
-              "flex w-[180px] items-center gap-2 rounded-full border px-3 py-2 " +
-              (active ? "border-[#45f0d1]/40 bg-[#45f0d1]/10" : "border-white/10 bg-[#141719]")
-            }
-          >
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/10">
-              <User className="size-3.5 text-[#eef1f0]" />
-            </span>
-            <span className="truncate text-[12px] font-medium text-[#eef1f0]">{p.name}</span>
-          </div>
-        ),
-      };
-    });
+    const orphanCount = people.filter((p) => !usedPersonIds.has(p.id)).length;
+
+    const personNodes = people
+      .filter((p) => showOrphans || usedPersonIds.has(p.id))
+      .map((p) => {
+        const id = `${PERSON_PREFIX}${p.id}`;
+        const active = usedPersonIds.has(p.id);
+        return {
+          id,
+          body: (
+            <div
+              className={
+                "flex w-[180px] items-center gap-2 rounded-full border px-3 py-2 " +
+                (active
+                  ? "border-[#45f0d1]/40 bg-[#45f0d1]/10"
+                  : "border-dashed border-white/15 bg-[#141719]/60")
+              }
+            >
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/10">
+                <User className={"size-3.5 " + (active ? "text-[#eef1f0]" : "text-[#8b918f]")} />
+              </span>
+              <span
+                className={
+                  "truncate text-[12px] font-medium " +
+                  (active ? "text-[#eef1f0]" : "text-[#8b918f]")
+                }
+              >
+                {p.name}
+              </span>
+              {!active && (
+                <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-[#8b918f]">
+                  sem vínculo
+                </span>
+              )}
+            </div>
+          ),
+        };
+      });
     if (needsNonePerson) {
       personNodes.push({
         id: NONE_PERSON,
@@ -232,8 +252,8 @@ export function TaskCanvas({
     ];
     const fallbackLayout = dagreLayout(layoutItems, derivedEdges);
 
-    return { nodes: allNodes, fallbackLayout, derivedEdges };
-  }, [tasks, cols, people]);
+    return { nodes: allNodes, fallbackLayout, derivedEdges, orphanCount };
+  }, [tasks, cols, people, showOrphans]);
 
   const handleConnect = async (source: string, target: string) => {
     // só task ↔ pessoa vira atribuição de verdade; o resto continua anotação livre.
@@ -288,6 +308,20 @@ export function TaskCanvas({
         onOpenEntity={handleOpenNode}
         onBeforeConnect={handleConnect}
       />
+      {orphanCount > 0 && (
+        <div className="absolute top-3 left-3 z-10">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowOrphans((v) => !v)}
+          >
+            {showOrphans ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {showOrphans
+              ? `Ocultar sem vínculo (${orphanCount})`
+              : `Mostrar sem vínculo (${orphanCount})`}
+          </Button>
+        </div>
+      )}
       {canManage && (
         <div className="absolute top-3 right-3 z-10">
           <Button size="sm" onClick={onCreateTask}>
