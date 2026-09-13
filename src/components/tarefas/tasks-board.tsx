@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -52,6 +53,7 @@ import {
   type TaskPriorityReal,
 } from "@/app/(app)/tarefas/task-constants";
 import { AgentRequestDialog } from "@/components/tarefas/agent-request-dialog";
+import { ColumnManager } from "@/components/shared/column-manager";
 import { TaskDetailSections } from "@/components/tarefas/task-detail-sections";
 import { TasksCalendar } from "@/components/tarefas/tasks-calendar";
 import { TasksList } from "@/components/tarefas/tasks-list";
@@ -597,8 +599,14 @@ function Card({
 
   return (
     <div
+      draggable={canManage && !selecting}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/task-id", task.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
       className={cn(
         "border-line bg-surface rounded-xl border p-3",
+        canManage && !selecting && "cursor-grab active:cursor-grabbing",
         selecting && checked && "border-data ring-data/30 ring-1",
       )}
     >
@@ -867,188 +875,6 @@ function TemplateManager({
                     setDesc("");
                   },
                 )
-              }
-            >
-              Criar
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-line flex justify-end border-t p-4">
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Fechar
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ColumnManager({
-  cols,
-  onClose,
-}: {
-  cols: StatusCol[];
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const [, start] = useTransition();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [names, setNames] = useState<Record<string, string>>(
-    () => Object.fromEntries(cols.map((c) => [c.id, c.name])),
-  );
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [dest, setDest] = useState<string>("");
-  const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState<string>("slate");
-
-  const run = (key: string, fn: () => Promise<unknown>) => {
-    setBusy(key);
-    start(async () => {
-      try {
-        await fn();
-        router.refresh(); // o painel fica aberto — puxa o board novo na hora
-      } catch (e) {
-        toast.error(actionError(e, "Falhou"));
-      } finally {
-        setBusy(null);
-      }
-    });
-  };
-
-  return (
-    <div className="flex h-full flex-col">
-      <SheetHeader className="border-line border-b p-5 pr-12">
-        <SheetTitle className="text-base font-semibold">
-          Colunas do Kanban
-        </SheetTitle>
-      </SheetHeader>
-
-      <div className="flex-1 space-y-2 overflow-y-auto p-5">
-        {cols.map((c, i) => (
-          <div key={c.id} className="border-line rounded-lg border p-2.5">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: colDot(c.color) }}
-              />
-              <input
-                value={names[c.id] ?? c.name}
-                onChange={(e) =>
-                  setNames((n) => ({ ...n, [c.id]: e.target.value }))
-                }
-                onBlur={() => {
-                  const v = (names[c.id] ?? "").trim();
-                  if (v && v !== c.name) run(`name:${c.id}`, () => renameStatus(c.id, v));
-                }}
-                className="border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none"
-              />
-              <select
-                value={c.color}
-                onChange={(e) =>
-                  run(`color:${c.id}`, () => setStatusColor(c.id, e.target.value))
-                }
-                className="border-line-strong h-8 rounded-md border bg-transparent px-1 text-xs outline-none"
-              >
-                {STATUS_COLORS.map((col) => (
-                  <option key={col} value={col}>
-                    {col}
-                  </option>
-                ))}
-              </select>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={i === 0 || busy !== null}
-                onClick={() => run(`up:${c.id}`, () => moveStatus(c.id, "up"))}
-              >
-                <ArrowUp className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={i === cols.length - 1 || busy !== null}
-                onClick={() => run(`down:${c.id}`, () => moveStatus(c.id, "down"))}
-              >
-                <ArrowDown className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={cols.length <= 1}
-                onClick={() => {
-                  setDeletingId(deletingId === c.id ? null : c.id);
-                  setDest(cols.find((x) => x.id !== c.id)?.name ?? "");
-                }}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-
-            {deletingId === c.id && (
-              <div className="border-line mt-2 flex items-center gap-2 border-t pt-2 text-[11px]">
-                <span className="text-ink-muted">Mover tarefas para</span>
-                <select
-                  value={dest}
-                  onChange={(e) => setDest(e.target.value)}
-                  className="border-line-strong h-7 flex-1 rounded-md border bg-transparent px-1.5 outline-none"
-                >
-                  {cols
-                    .filter((x) => x.id !== c.id)
-                    .map((x) => (
-                      <option key={x.id} value={x.name}>
-                        {colLabel(x.name)}
-                      </option>
-                    ))}
-                </select>
-                <Button
-                  variant="destructive"
-                  size="xs"
-                  disabled={busy !== null || !dest}
-                  onClick={() =>
-                    run(`del:${c.id}`, async () => {
-                      await deleteStatus(c.id, dest);
-                      setDeletingId(null);
-                    })
-                  }
-                >
-                  Excluir
-                </Button>
-              </div>
-            )}
-          </div>
-        ))}
-
-        <div className="border-line mt-3 rounded-lg border border-dashed p-2.5">
-          <span className="text-ink-muted text-[11px] font-semibold uppercase">
-            Nova coluna
-          </span>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Ex: Bloqueado"
-              className="border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none"
-            />
-            <select
-              value={newColor}
-              onChange={(e) => setNewColor(e.target.value)}
-              className="border-line-strong h-8 rounded-md border bg-transparent px-1 text-xs outline-none"
-            >
-              {STATUS_COLORS.map((col) => (
-                <option key={col} value={col}>
-                  {col}
-                </option>
-              ))}
-            </select>
-            <Button
-              size="sm"
-              disabled={busy !== null || !newName.trim()}
-              onClick={() =>
-                run("create", async () => {
-                  await createStatus(newName, newColor);
-                  setNewName("");
-                })
               }
             >
               Criar
@@ -1438,6 +1264,22 @@ export function TasksBoard({
     setEditing({ ...BLANK, status: fallbackCol });
   };
 
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [, startDragMove] = useTransition();
+  const onDropCol = (statusName: string) => (e: DragEvent) => {
+    e.preventDefault();
+    setDragOverCol(null);
+    const id = e.dataTransfer.getData("text/task-id");
+    if (!id) return;
+    startDragMove(async () => {
+      try {
+        await moveTaskStatus(id, statusName);
+      } catch (err) {
+        toast.error(actionError(err, "Falhou ao mover"));
+      }
+    });
+  };
+
   return (
     <>
       <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
@@ -1733,7 +1575,7 @@ export function TasksBoard({
           />
         </div>
       ) : (
-        <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
+        <div className="board-scroll flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
           {cols.map((col) => {
             const items = byColumn.get(col.name) ?? [];
             return (
@@ -1751,7 +1593,23 @@ export function TasksBoard({
                     {items.length}
                   </span>
                 </header>
-                <div className="bg-surface-2/40 flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2">
+                <div
+                  onDragOver={(e) => {
+                    if (!canManage) return;
+                    e.preventDefault();
+                    setDragOverCol(col.name);
+                  }}
+                  onDragLeave={() =>
+                    setDragOverCol((d) => (d === col.name ? null : d))
+                  }
+                  onDrop={onDropCol(col.name)}
+                  className={cn(
+                    "board-scroll flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2 transition-colors",
+                    dragOverCol === col.name
+                      ? "bg-data/10 ring-data/40 ring-1"
+                      : "bg-surface-2/40",
+                  )}
+                >
                   {items.map((task) => (
                     <Card
                       key={task.id}
@@ -1806,7 +1664,16 @@ export function TasksBoard({
 
       <Sheet open={manageCols} onOpenChange={setManageCols}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-[420px]">
-          <ColumnManager cols={cols} onClose={() => setManageCols(false)} />
+          <ColumnManager
+            cols={cols}
+            colors={STATUS_COLORS}
+            title="Colunas do Kanban"
+            itemLabel="tarefas"
+            colLabel={colLabel}
+            colDot={colDot}
+            onClose={() => setManageCols(false)}
+            actions={{ createStatus, renameStatus, setStatusColor, moveStatus, deleteStatus }}
+          />
         </SheetContent>
       </Sheet>
 
@@ -1824,6 +1691,7 @@ export function TasksBoard({
         open={agentRequest}
         onOpenChange={setAgentRequest}
         fallbackStatus={fallbackCol}
+        clients={clients}
       />
 
       {deleting && (

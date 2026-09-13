@@ -2,51 +2,43 @@
 
 import { useMemo } from "react";
 
+import { colDot, type StatusCol } from "@/app/(app)/pipeline/lead-constants";
 import { EntityCanvas } from "@/components/canvas/entity-canvas";
 import type { LeadRow } from "@/components/pipeline/pipeline-board";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
 import { formatCompactCurrency } from "@/lib/utils";
-
-const STAGE_ORDER = [
-  "novo",
-  "contatado",
-  "qualificado",
-  "virou_proposta",
-  "proposta_aprovada",
-  "descartado",
-] as const;
-
-const STAGE_DOT: Record<string, string> = {
-  novo: "var(--wip)",
-  contatado: "var(--data)",
-  qualificado: "var(--done)",
-  virou_proposta: "var(--action)",
-  proposta_aprovada: "#22c55e",
-  descartado: "var(--ink-muted)",
-};
 
 const COL_W = 300;
 const ROW_H = 122;
 
 export function PipelineCanvas({
   leads,
+  statuses,
   snapshot,
   canManage,
   onOpenLead,
 }: {
   leads: LeadRow[];
+  statuses: StatusCol[];
   snapshot: CanvasSnapshot;
   canManage: boolean;
   onOpenLead: (id: number) => void;
 }) {
+  const cols = useMemo(
+    () => [...statuses].sort((a, b) => a.position - b.position),
+    [statuses],
+  );
+
   const { nodes, fallbackLayout } = useMemo(() => {
+    const colIndex = new Map(cols.map((c, i) => [c.name, i]));
     const perStage: Record<string, number> = {};
     const fallbackLayout: Record<string, { x: number; y: number }> = {};
 
     const nodes = leads.map((lead) => {
-      const col = Math.max(0, STAGE_ORDER.indexOf(lead.status as never));
+      const col = colIndex.get(lead.status) ?? 0;
       const row = (perStage[lead.status] = (perStage[lead.status] ?? 0) + 1) - 1;
       fallbackLayout[String(lead.id)] = { x: col * COL_W, y: row * ROW_H };
+      const statusCol = cols.find((c) => c.name === lead.status);
 
       return {
         id: String(lead.id),
@@ -55,7 +47,9 @@ export function PipelineCanvas({
             <div className="flex items-center gap-2">
               <span
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: STAGE_DOT[lead.status] ?? "var(--wip)" }}
+                style={{
+                  backgroundColor: statusCol ? colDot(statusCol.color) : "var(--ink-muted)",
+                }}
               />
               <span className="truncate text-[13px] font-semibold text-[#eef1f0]">
                 {lead.empresa}
@@ -82,7 +76,7 @@ export function PipelineCanvas({
     });
 
     return { nodes, fallbackLayout };
-  }, [leads]);
+  }, [leads, cols]);
 
   return (
     <EntityCanvas

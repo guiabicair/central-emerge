@@ -16,26 +16,35 @@ import {
 /**
  * "Pedir ao Agente" — atalho pro mesmo mecanismo de sempre (task pending,
  * sem responsável humano vira candidata pro worker automático pegar), só
- * que com um form mínimo (sem cliente/prazo/assignee) pra deixar claro que
- * é um pedido em linguagem natural pro agente resolver, não uma task de
- * time normal. A rotina cloud roda a cada 2h (ver memória do projeto).
+ * que com um form mínimo (sem prazo/assignee) pra deixar claro que é um
+ * pedido em linguagem natural pro agente resolver, não uma task de time
+ * normal. A rotina cloud roda a cada 2h (ver memória do projeto).
  */
 export function AgentRequestDialog({
   open,
   onOpenChange,
   fallbackStatus,
+  clients,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fallbackStatus: string;
+  clients: { id: string; name: string }[];
 }) {
+  // pré-seleciona Emerge Labs — a maioria dos pedidos por aqui é sobre o
+  // próprio trabalho interno da Central, não sobre um cliente externo.
+  const defaultClientId =
+    clients.find((c) => c.name === "Emerge Labs")?.id ?? "";
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [clientId, setClientId] = useState(defaultClientId);
   const [pending, start] = useTransition();
 
   function reset() {
     setTitle("");
     setDescription("");
+    setClientId(defaultClientId);
   }
 
   function submit() {
@@ -50,6 +59,7 @@ export function AgentRequestDialog({
           description: description.trim() || undefined,
           status: fallbackStatus,
           priority: "medium",
+          clientId: clientId || null,
           assignees: [],
           subtasks: [],
         });
@@ -103,12 +113,33 @@ export function AgentRequestDialog({
 
           <label className="block">
             <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Cliente / empresa
+            </span>
+            <select
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="border-line-strong focus:border-data mt-1 h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none"
+            >
+              <option value="">— nenhum —</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-ink-muted mt-1 block text-[11px]">
+              Define onde a tarefa aparece na árvore da view Nós.
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
               Detalhes (opcional)
             </span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={8}
+              rows={7}
               placeholder="Contexto, onde reproduzir, o que já foi tentado..."
               className="border-line-strong focus:border-data mt-1 w-full resize-none rounded-md border bg-transparent p-2.5 text-sm outline-none"
             />

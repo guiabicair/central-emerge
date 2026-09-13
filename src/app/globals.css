@@ -255,3 +255,24 @@
 .emerge-flow .react-flow__edge.is-progression .react-flow__edge-path {
   stroke: color-mix(in oklch, var(--data), transparent 45%);
 }
+
+/* ---- Scrollbar fina e discreta pros boards de colunas (Tarefas/Pipeline).
+ *      Scrollbar padrão do OS destoava do fundo escuro. ---- */
+.board-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.board-scroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.board-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.board-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 999px;
+}
+.board-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-muted);
+}

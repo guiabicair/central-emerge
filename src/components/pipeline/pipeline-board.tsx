@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { DragEvent } from "react";
 import dynamic from "next/dynamic";
 import {
+  Columns3,
   ExternalLink,
   GripVertical,
   KanbanSquare,
@@ -16,17 +17,25 @@ import { toast } from "sonner";
 
 import {
   closeDealCreateClient,
+  createStatus,
   deleteLead,
+  deleteStatus,
   moveLeadStage,
+  moveStatus,
   saveLead,
+  setStatusColor,
+  renameStatus,
 } from "@/app/(app)/pipeline/actions";
 import {
   LEAD_FRENTE,
-  LEAD_STATUS,
+  STATUS_COLORS,
+  colDot,
+  colLabel,
   type LeadFrente,
   type LeadInput,
-  type LeadStatus,
+  type StatusCol,
 } from "@/app/(app)/pipeline/lead-constants";
+import { ColumnManager } from "@/components/shared/column-manager";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -67,20 +76,6 @@ export interface LeadRow {
   criado_em: string;
 }
 
-const COLUMNS: {
-  id: LeadStatus;
-  label: string;
-  dot: string;
-  aside?: boolean;
-}[] = [
-  { id: "novo", label: "Novo", dot: "var(--wip)" },
-  { id: "contatado", label: "Contatado", dot: "var(--data)" },
-  { id: "qualificado", label: "Qualificado", dot: "var(--done)" },
-  { id: "virou_proposta", label: "Virou proposta", dot: "var(--action)" },
-  { id: "proposta_aprovada", label: "Proposta aprovada", dot: "#22c55e" },
-  { id: "descartado", label: "Descartado", dot: "var(--ink-muted)", aside: true },
-];
-
 const PROPOSTA_BASE = "https://emerge-propostas.vercel.app";
 
 const FRENTE_LABEL: Record<string, string> = {
@@ -104,7 +99,7 @@ const BLANK: LeadInput = {
   proposta_slug: "",
 };
 
-function toInput(l: LeadRow): LeadInput {
+function toInput(l: LeadRow, fallbackStatus: string): LeadInput {
   return {
     id: l.id,
     empresa: l.empresa,
@@ -116,9 +111,7 @@ function toInput(l: LeadRow): LeadInput {
     origem: l.origem ?? "",
     valor_estimado: l.valor_estimado,
     responsavel: l.responsavel ?? "",
-    status: (LEAD_STATUS as readonly string[]).includes(l.status)
-      ? (l.status as LeadStatus)
-      : "novo",
+    status: l.status || fallbackStatus,
     motivo_fit: l.motivo_fit ?? "",
     proposta_slug: l.proposta_slug ?? "",
   };
@@ -129,9 +122,11 @@ const inputCls =
 
 function LeadForm({
   initial,
+  statuses,
   onClose,
 }: {
   initial: LeadInput;
+  statuses: StatusCol[];
   onClose: () => void;
 }) {
   const [form, setForm] = useState<LeadInput>(initial);
@@ -197,12 +192,12 @@ function LeadForm({
             </span>
             <select
               value={form.status}
-              onChange={(e) => set("status", e.target.value as LeadStatus)}
+              onChange={(e) => set("status", e.target.value)}
               className={`mt-1 ${inputCls}`}
             >
-              {COLUMNS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
+              {statuses.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {colLabel(c.name)}
                 </option>
               ))}
             </select>
@@ -350,6 +345,7 @@ function DeleteDialog({
 
 function LeadCard({
   lead,
+  statuses,
   canManage,
   onEdit,
   onDelete,
@@ -357,10 +353,11 @@ function LeadCard({
   onLinkProposta,
 }: {
   lead: LeadRow;
+  statuses: StatusCol[];
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onMove: (status: LeadStatus) => void;
+  onMove: (status: string) => void;
   onLinkProposta: () => void;
 }) {
   return (
@@ -439,12 +436,12 @@ function LeadCard({
       {canManage && (
         <select
           value={lead.status}
-          onChange={(e) => onMove(e.target.value as LeadStatus)}
+          onChange={(e) => onMove(e.target.value)}
           className="border-line-strong text-ink-muted mt-2 h-7 w-full rounded-md border bg-transparent px-1.5 text-[11px] outline-none"
         >
-          {COLUMNS.map((c) => (
-            <option key={c.id} value={c.id}>
-              Mover → {c.label}
+          {statuses.map((c) => (
+            <option key={c.id} value={c.name}>
+              Mover → {colLabel(c.name)}
             </option>
           ))}
         </select>
@@ -455,19 +452,28 @@ function LeadCard({
 
 export function PipelineBoard({
   leads: leadsProp,
+  statuses,
   canManage,
   loadError,
   canvas,
 }: {
   leads: LeadRow[];
+  statuses: StatusCol[];
   canManage: boolean;
   loadError: string | null;
   canvas: CanvasSnapshot;
 }) {
+  const cols = useMemo(
+    () => [...statuses].sort((a, b) => a.position - b.position),
+    [statuses],
+  );
+  const fallbackStatus = cols[0]?.name ?? "novo";
+
   const [editing, setEditing] = useState<LeadInput | null>(null);
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
   const [closingDeal, setClosingDeal] = useState<LeadRow | null>(null);
   const [view, setView] = useState<"board" | "canvas">("board");
+  const [manageCols, setManageCols] = useState(false);
   const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [, start] = useTransition();
@@ -476,16 +482,16 @@ export function PipelineBoard({
 
   const byColumn = useMemo(() => {
     const map = new Map<string, LeadRow[]>();
-    for (const c of COLUMNS) map.set(c.id, []);
+    for (const c of cols) map.set(c.name, []);
     for (const l of leads) {
-      (map.get(l.status) ?? map.get("novo"))!.push(l);
+      (map.get(l.status) ?? map.get(fallbackStatus))?.push(l);
     }
     return map;
-  }, [leads]);
+  }, [leads, cols, fallbackStatus]);
 
   const totalValor = leads.reduce((s, l) => s + (l.valor_estimado || 0), 0);
 
-  const doMove = (lead: LeadRow, status: LeadStatus) => {
+  const doMove = (lead: LeadRow, status: string) => {
     if (lead.status === status) return;
     if (status === "proposta_aprovada") {
       setClosingDeal(lead);
@@ -504,24 +510,24 @@ export function PipelineBoard({
     });
   };
 
-  const onDropCol = (colId: LeadStatus, e: DragEvent) => {
+  const onDropCol = (statusName: string, e: DragEvent) => {
     e.preventDefault();
     setDragOver(null);
     const id = Number(e.dataTransfer.getData("text/lead-id"));
     const lead = leads.find((l) => l.id === id);
-    if (lead) doMove(lead, colId);
+    if (lead) doMove(lead, statusName);
   };
 
-  const renderColumn = (col: (typeof COLUMNS)[number]) => {
-    const items = byColumn.get(col.id) ?? [];
+  const renderColumn = (col: StatusCol) => {
+    const items = byColumn.get(col.name) ?? [];
     return (
       <section key={col.id} className="flex w-[280px] shrink-0 flex-col">
         <header className="mb-3 flex items-center gap-2 px-1">
           <span
             className="size-2 rounded-full"
-            style={{ backgroundColor: col.dot }}
+            style={{ backgroundColor: colDot(col.color) }}
           />
-          <h3 className="text-sm font-semibold">{col.label}</h3>
+          <h3 className="text-sm font-semibold">{colLabel(col.name)}</h3>
           <span className="bg-surface-2 text-ink-muted rounded-full px-1.5 text-[11px] font-medium">
             {items.length}
           </span>
@@ -530,12 +536,12 @@ export function PipelineBoard({
           onDragOver={(e) => {
             if (!canManage) return;
             e.preventDefault();
-            setDragOver(col.id);
+            setDragOver(col.name);
           }}
-          onDragLeave={() => setDragOver((d) => (d === col.id ? null : d))}
-          onDrop={(e) => onDropCol(col.id, e)}
-          className={`flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2 transition-colors ${
-            dragOver === col.id
+          onDragLeave={() => setDragOver((d) => (d === col.name ? null : d))}
+          onDrop={(e) => onDropCol(col.name, e)}
+          className={`board-scroll flex flex-1 flex-col gap-2.5 overflow-y-auto rounded-xl p-2 transition-colors ${
+            dragOver === col.name
               ? "bg-data/10 ring-data/40 ring-1"
               : "bg-surface-2/40"
           }`}
@@ -544,11 +550,12 @@ export function PipelineBoard({
             <LeadCard
               key={lead.id}
               lead={lead}
+              statuses={cols}
               canManage={canManage}
-              onEdit={() => setEditing(toInput(lead))}
+              onEdit={() => setEditing(toInput(lead, fallbackStatus))}
               onDelete={() => setDeleting(lead)}
               onMove={(status) => doMove(lead, status)}
-              onLinkProposta={() => setEditing(toInput(lead))}
+              onLinkProposta={() => setEditing(toInput(lead, fallbackStatus))}
             />
           ))}
           {items.length === 0 && (
@@ -584,10 +591,16 @@ export function PipelineBoard({
             </Tabs>
           )}
           {canManage && (
-            <Button size="sm" onClick={() => setEditing(BLANK)}>
-              <Plus className="size-4" />
-              Novo lead
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={() => setManageCols(true)}>
+                <Columns3 className="size-4" />
+                Colunas
+              </Button>
+              <Button size="sm" onClick={() => setEditing({ ...BLANK, status: fallbackStatus })}>
+                <Plus className="size-4" />
+                Novo lead
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -606,27 +619,41 @@ export function PipelineBoard({
         <div className="border-line min-h-0 flex-1 border-t">
           <PipelineCanvas
             leads={leads}
+            statuses={cols}
             snapshot={canvas}
             canManage={canManage}
             onOpenLead={(id) => {
               const l = leads.find((x) => x.id === id);
-              if (l) setEditing(toInput(l));
+              if (l) setEditing(toInput(l, fallbackStatus));
             }}
           />
         </div>
       ) : (
-        <div className="flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
-          {COLUMNS.filter((c) => !c.aside).map(renderColumn)}
-          <div className="border-line mx-1 w-px shrink-0 self-stretch" />
-          {COLUMNS.filter((c) => c.aside).map(renderColumn)}
+        <div className="board-scroll flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
+          {cols.map(renderColumn)}
         </div>
       )}
 
       <Sheet open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-[460px]">
           {editing && (
-            <LeadForm initial={editing} onClose={() => setEditing(null)} />
+            <LeadForm initial={editing} statuses={cols} onClose={() => setEditing(null)} />
           )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={manageCols} onOpenChange={setManageCols}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-[420px]">
+          <ColumnManager
+            cols={cols}
+            colors={STATUS_COLORS}
+            title="Etapas do Pipeline"
+            itemLabel="leads"
+            colLabel={colLabel}
+            colDot={colDot}
+            onClose={() => setManageCols(false)}
+            actions={{ createStatus, renameStatus, setStatusColor, moveStatus, deleteStatus }}
+          />
         </SheetContent>
       </Sheet>
 
