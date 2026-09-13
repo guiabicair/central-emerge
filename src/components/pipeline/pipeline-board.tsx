@@ -746,6 +746,7 @@ export function PipelineBoard({
       ) : view === "canvas" ? (
         <div className="border-line min-h-0 flex-1 border-t">
           <PipelineCanvas
+            key={`${unit}::${companyFilter}::${respFilter}`}
             leads={leadsFiltered}
             statuses={cols}
             snapshot={canvas}
