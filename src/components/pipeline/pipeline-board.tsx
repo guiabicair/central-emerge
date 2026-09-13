@@ -85,6 +85,7 @@ export interface LeadRow {
 }
 
 const PROPOSTA_BASE = "https://emerge-propostas.vercel.app";
+const NO_RESP = "Sem responsável";
 
 const FRENTE_LABEL: Record<string, string> = {
   criptoforja: "Criptoforja",
@@ -507,6 +508,8 @@ export function PipelineBoard({
   const [manageCols, setManageCols] = useState(false);
   const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [respFilter, setRespFilter] = useState("");
   const [, start] = useTransition();
 
   useEffect(() => setLeads(leadsProp), [leadsProp]);
@@ -520,16 +523,38 @@ export function PipelineBoard({
     [outreach, unit],
   );
 
+  const companies = useMemo(
+    () => Array.from(new Set(leadsForUnit.map((l) => l.empresa))).sort((a, b) => a.localeCompare(b)),
+    [leadsForUnit],
+  );
+  const responsaveis = useMemo(
+    () =>
+      Array.from(new Set(leadsForUnit.map((l) => l.responsavel || NO_RESP))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [leadsForUnit],
+  );
+
+  const leadsFiltered = useMemo(
+    () =>
+      leadsForUnit.filter(
+        (l) =>
+          (!companyFilter || l.empresa === companyFilter) &&
+          (!respFilter || (l.responsavel || NO_RESP) === respFilter),
+      ),
+    [leadsForUnit, companyFilter, respFilter],
+  );
+
   const byColumn = useMemo(() => {
     const map = new Map<string, LeadRow[]>();
     for (const c of cols) map.set(c.name, []);
-    for (const l of leadsForUnit) {
+    for (const l of leadsFiltered) {
       (map.get(l.status) ?? map.get(fallbackStatus))?.push(l);
     }
     return map;
-  }, [leadsForUnit, cols, fallbackStatus]);
+  }, [leadsFiltered, cols, fallbackStatus]);
 
-  const totalValor = leadsForUnit.reduce((s, l) => s + (l.valor_estimado || 0), 0);
+  const totalValor = leadsFiltered.reduce((s, l) => s + (l.valor_estimado || 0), 0);
 
   const doMove = (lead: LeadRow, status: string) => {
     if (lead.status === status) return;
@@ -612,7 +637,14 @@ export function PipelineBoard({
     <>
       <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
         <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={unit} onValueChange={(v) => setUnit(v as LeadUnidade)}>
+          <Tabs
+            value={unit}
+            onValueChange={(v) => {
+              setUnit(v as LeadUnidade);
+              setCompanyFilter("");
+              setRespFilter("");
+            }}
+          >
             <TabsList>
               <TabsTrigger value="labs">
                 <Code2 className="size-4" />
@@ -624,8 +656,32 @@ export function PipelineBoard({
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="border-line-strong text-ink-muted h-8 rounded-md border bg-transparent px-2 text-xs outline-none"
+          >
+            <option value="">Todas as empresas</option>
+            {companies.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <select
+            value={respFilter}
+            onChange={(e) => setRespFilter(e.target.value)}
+            className="border-line-strong text-ink-muted h-8 rounded-md border bg-transparent px-2 text-xs outline-none"
+          >
+            <option value="">Todos os responsáveis</option>
+            {responsaveis.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
           <span className="text-ink-muted text-xs">
-            {leadsForUnit.length} leads · {formatCurrency(totalValor)} estimado ·{" "}
+            {leadsFiltered.length} leads · {formatCurrency(totalValor)} estimado ·{" "}
             <span>
               {unit === "labs"
                 ? "gerados pelo Radar + manuais"
@@ -690,12 +746,12 @@ export function PipelineBoard({
       ) : view === "canvas" ? (
         <div className="border-line min-h-0 flex-1 border-t">
           <PipelineCanvas
-            leads={leadsForUnit}
+            leads={leadsFiltered}
             statuses={cols}
             snapshot={canvas}
             canManage={canManage}
             onOpenLead={(id) => {
-              const l = leadsForUnit.find((x) => x.id === id);
+              const l = leadsFiltered.find((x) => x.id === id);
               if (l) setEditing(toInput(l, fallbackStatus));
             }}
           />
