@@ -395,6 +395,7 @@ export type Database = {
       app_canvas_nodes: {
         Row: {
           board: string
+          color: string | null
           entity_id: string
           id: string
           owner: string
@@ -405,6 +406,7 @@ export type Database = {
         }
         Insert: {
           board: string
+          color?: string | null
           entity_id: string
           id?: string
           owner?: string
@@ -415,6 +417,7 @@ export type Database = {
         }
         Update: {
           board?: string
+          color?: string | null
           entity_id?: string
           id?: string
           owner?: string
@@ -3361,6 +3364,41 @@ export type Database = {
           valor_estimado?: number
         }
         Relationships: []
+      }
+      vendas_leads_status_history: {
+        Row: {
+          changed_at: string
+          id: number
+          lead_id: number
+          status_anterior: string | null
+          status_novo: string
+          unidade: string
+        }
+        Insert: {
+          changed_at?: string
+          id?: never
+          lead_id: number
+          status_anterior?: string | null
+          status_novo: string
+          unidade: string
+        }
+        Update: {
+          changed_at?: string
+          id?: never
+          lead_id?: number
+          status_anterior?: string | null
+          status_novo?: string
+          unidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendas_leads_status_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "vendas_leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendas_metas: {
         Row: {

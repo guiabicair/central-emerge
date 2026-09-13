@@ -1,10 +1,15 @@
 import { PipelineFunnelChart } from "@/components/dashboard/pipeline-funnel-chart";
+import { PipelineFunnelTrendChart } from "@/components/dashboard/pipeline-funnel-trend-chart";
 import { SectionCard } from "@/components/dashboard/section-card";
 import { TaskStatusChart } from "@/components/dashboard/task-status-chart";
 import { Topbar } from "@/components/layout/topbar";
 import { StatTile } from "@/components/stat-tile";
 import { can } from "@/lib/auth/roles";
 import type { FunnelRow, StatusRow } from "@/lib/dashboard";
+import {
+  pipelineFunnelTrend,
+  type LeadStatusEvent,
+} from "@/lib/pipeline-trend";
 import { createClient } from "@/lib/supabase/server";
 import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
 
@@ -40,6 +45,11 @@ const OPEN_STAGES = new Set([
   "virou_proposta",
 ]);
 
+const UNIDADES: { id: string; label: string }[] = [
+  { id: "labs", label: "Emerge Labs" },
+  { id: "tech", label: "Emerge Tech" },
+];
+
 function ym(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -55,30 +65,36 @@ export default async function DashboardPage() {
     can("tarefas.view"),
   ]);
 
-  const [clientsRes, cashRes, metaRes, leadsRes, tasksRes] = await Promise.all([
-    canClientes
-      ? supabase.from("clients").select("mrr").eq("is_seed", true)
-      : Promise.resolve({ data: [], error: null } as const),
-    canFin
-      ? supabase
-          .from("company_cash")
-          .select("current_amount")
-          .order("updated_at", { ascending: false })
-          .limit(1)
-      : Promise.resolve({ data: [], error: null } as const),
-    canFin
-      ? supabase
-          .from("vendas_metas")
-          .select("meta_valor, realizado_valor")
-          .eq("periodo", periodo)
-      : Promise.resolve({ data: [], error: null } as const),
-    canPipe
-      ? supabase.from("vendas_leads").select("status, valor_estimado")
-      : Promise.resolve({ data: [], error: null } as const),
-    canTasks
-      ? supabase.from("tasks").select("status")
-      : Promise.resolve({ data: [], error: null } as const),
-  ]);
+  const [clientsRes, cashRes, metaRes, leadsRes, leadHistoryRes, tasksRes] =
+    await Promise.all([
+      canClientes
+        ? supabase.from("clients").select("mrr").eq("is_seed", true)
+        : Promise.resolve({ data: [], error: null } as const),
+      canFin
+        ? supabase
+            .from("company_cash")
+            .select("current_amount")
+            .order("updated_at", { ascending: false })
+            .limit(1)
+        : Promise.resolve({ data: [], error: null } as const),
+      canFin
+        ? supabase
+            .from("vendas_metas")
+            .select("meta_valor, realizado_valor")
+            .eq("periodo", periodo)
+        : Promise.resolve({ data: [], error: null } as const),
+      canPipe
+        ? supabase.from("vendas_leads").select("status, valor_estimado, unidade")
+        : Promise.resolve({ data: [], error: null } as const),
+      canPipe
+        ? supabase
+            .from("vendas_leads_status_history")
+            .select("lead_id, unidade, status_novo, changed_at")
+        : Promise.resolve({ data: [], error: null } as const),
+      canTasks
+        ? supabase.from("tasks").select("status")
+        : Promise.resolve({ data: [], error: null } as const),
+    ]);
 
   // ---- Clientes + MRR (clients.mrr, só carteira curada) ----
   const showClientes = canClientes && !clientsRes.error;
@@ -107,9 +123,11 @@ export default async function DashboardPage() {
   const leads = ((leadsRes.data ?? []) as {
     status: string;
     valor_estimado: number | null;
+    unidade: string;
   }[]).map((l) => ({
     status: l.status,
     valor: Number(l.valor_estimado) || 0,
+    unidade: l.unidade,
   }));
   const funnel: FunnelRow[] = LEAD_STAGES.map((st) => {
     const rows = leads.filter((l) => l.status === st.id);
@@ -125,6 +143,40 @@ export default async function DashboardPage() {
   const emAberto = leads
     .filter((l) => OPEN_STAGES.has(l.status))
     .reduce((s, l) => s + l.valor, 0);
+
+  // ---- Funil por unidade (estado atual + tendência da taxa de conversão) ----
+  const funnelByUnidade = UNIDADES.map((u) => {
+    const rows = leads.filter((l) => l.unidade === u.id);
+    return {
+      unidade: u,
+      total: rows.length,
+      funnel: LEAD_STAGES.map((st) => {
+        const stRows = rows.filter((l) => l.status === st.id);
+        return {
+          stageId: st.id,
+          label: st.label,
+          accent: st.accent,
+          count: stRows.length,
+          valor: stRows.reduce((s, l) => s + l.valor, 0),
+        };
+      }) as FunnelRow[],
+    };
+  }).filter((u) => u.total > 0);
+
+  const leadHistory: LeadStatusEvent[] = (
+    (leadHistoryRes.data ?? []) as {
+      lead_id: number;
+      unidade: string;
+      status_novo: string;
+      changed_at: string;
+    }[]
+  ).map((h) => ({
+    leadId: h.lead_id,
+    unidade: h.unidade,
+    status: h.status_novo,
+    changedAt: h.changed_at,
+  }));
+  const funnelTrend = showPipe ? pipelineFunnelTrend(leadHistory) : [];
 
   // ---- Tarefas (tasks) ----
   const showTasks = canTasks && !tasksRes.error;
@@ -241,6 +293,46 @@ export default async function DashboardPage() {
                     )}
                   </SectionCard>
                 )}
+              </div>
+            )}
+
+            {showPipe && funnelByUnidade.length > 0 && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <SectionCard
+                  title="Funil por unidade"
+                  summary="estado atual, Emerge Labs vs. Emerge Tech"
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {funnelByUnidade.map(({ unidade, total, funnel: f }) => (
+                      <div key={unidade.id}>
+                        <p className="text-ink-muted mb-1 text-xs font-medium">
+                          {unidade.label} · {total} leads
+                        </p>
+                        <PipelineFunnelChart data={f} />
+                      </div>
+                    ))}
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Conversão do funil ao longo do tempo"
+                  summary="taxa sobre os leads 'novo', por semana"
+                >
+                  {funnelTrend.length > 0 ? (
+                    <>
+                      <PipelineFunnelTrendChart data={funnelTrend} />
+                      <p className="text-ink-muted mt-2 text-xs">
+                        Mede só a partir de quando o histórico de estágio
+                        passou a ser registrado (vendas_leads_status_history)
+                        — não retroage a estágios anteriores a isso.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-ink-muted py-10 text-center text-sm">
+                      Ainda sem histórico de mudança de estágio suficiente.
+                    </p>
+                  )}
+                </SectionCard>
               </div>
             )}
 
