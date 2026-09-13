@@ -325,8 +325,8 @@ function TaskForm({
           <textarea
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            rows={2}
-            className="border-line-strong focus:border-data mt-1 w-full rounded-md border bg-transparent px-2.5 py-2 text-sm outline-none"
+            rows={10}
+            className="border-line-strong focus:border-data mt-1 w-full resize-y rounded-md border bg-transparent px-2.5 py-2 text-sm whitespace-pre-wrap outline-none"
           />
         </label>
         <label className="block">
