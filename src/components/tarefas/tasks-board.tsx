@@ -51,6 +51,7 @@ import {
   type TaskInput,
   type TaskPriorityReal,
 } from "@/app/(app)/tarefas/task-constants";
+import { AgentRequestDialog } from "@/components/tarefas/agent-request-dialog";
 import { TaskDetailSections } from "@/components/tarefas/task-detail-sections";
 import { TasksCalendar } from "@/components/tarefas/tasks-calendar";
 import { TasksList } from "@/components/tarefas/tasks-list";
@@ -1120,6 +1121,7 @@ export function TasksBoard({
   const [deleting, setDeleting] = useState<TaskRow | null>(null);
   const [manageCols, setManageCols] = useState(false);
   const [manageTpl, setManageTpl] = useState(false);
+  const [agentRequest, setAgentRequest] = useState(false);
   const [view, setView] = useState<BoardView>("kanban");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [quick, setQuick] = useState<Set<Quick>>(() => new Set());
@@ -1501,6 +1503,10 @@ export function TasksBoard({
               <Plus className="size-4" />
               Nova tarefa
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setAgentRequest(true)}>
+              <Bot className="size-4" />
+              Pedir ao Agente
+            </Button>
           </div>
         )}
       </div>
@@ -1813,6 +1819,12 @@ export function TasksBoard({
           />
         </SheetContent>
       </Sheet>
+
+      <AgentRequestDialog
+        open={agentRequest}
+        onOpenChange={setAgentRequest}
+        fallbackStatus={fallbackCol}
+      />
 
       {deleting && (
         <DeleteDialog task={deleting} onClose={() => setDeleting(null)} />
