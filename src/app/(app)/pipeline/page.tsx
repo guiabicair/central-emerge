@@ -27,7 +27,7 @@ export default async function PipelinePage() {
     supabase
       .from("vendas_leads")
       .select(
-        "id, empresa, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
+        "id, empresa, unidade, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
       )
       .order("atualizado_em", { ascending: false }),
     db.from("lead_statuses").select("id, name, color, position").order("position"),
@@ -48,9 +48,11 @@ export default async function PipelinePage() {
   }));
 
   const empresaByLeadId = new Map(leads.map((l) => [l.id, l.empresa]));
+  const unidadeByLeadId = new Map(leads.map((l) => [l.id, l.unidade]));
   const outreach: OutreachRow[] = ((outreachRes.data ?? []) as OutreachDb[]).map((o) => ({
     id: o.id,
     leadId: o.lead_id,
+    unidade: unidadeByLeadId.get(o.lead_id) ?? "labs",
     empresa: empresaByLeadId.get(o.lead_id) ?? `Lead #${o.lead_id}`,
     toEmail: o.to_email,
     subject: o.subject,

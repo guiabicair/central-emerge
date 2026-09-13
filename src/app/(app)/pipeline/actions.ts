@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   LEAD_FRENTE,
+  LEAD_UNIDADE,
   STATUS_COLORS,
   type LeadInput,
 } from "@/app/(app)/pipeline/lead-constants";
@@ -33,6 +34,7 @@ export async function saveLead(input: LeadInput) {
   await guard();
   if (!input.empresa.trim()) throw new Error("Empresa é obrigatória.");
   if (!LEAD_FRENTE.includes(input.frente)) throw new Error("Frente inválida.");
+  if (!LEAD_UNIDADE.includes(input.unidade)) throw new Error("Unidade inválida.");
 
   const supabase = await createUntypedClient();
   if (!(await statusNames(supabase)).has(input.status)) {
@@ -41,6 +43,7 @@ export async function saveLead(input: LeadInput) {
 
   const row = {
     empresa: input.empresa.trim(),
+    unidade: input.unidade,
     frente: input.frente,
     segmento: input.segmento?.trim() || null,
     contato: input.contato?.trim() || null,

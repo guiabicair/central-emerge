@@ -356,6 +356,457 @@ export type Database = {
           },
         ]
       }
+      app_canvas_edges: {
+        Row: {
+          board: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          meta: Json
+          owner: string
+          source_entity: string
+          target_entity: string
+        }
+        Insert: {
+          board: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          meta?: Json
+          owner?: string
+          source_entity: string
+          target_entity: string
+        }
+        Update: {
+          board?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          meta?: Json
+          owner?: string
+          source_entity?: string
+          target_entity?: string
+        }
+        Relationships: []
+      }
+      app_canvas_nodes: {
+        Row: {
+          board: string
+          entity_id: string
+          id: string
+          owner: string
+          updated_at: string
+          updated_by: string | null
+          x: number
+          y: number
+        }
+        Insert: {
+          board: string
+          entity_id: string
+          id?: string
+          owner?: string
+          updated_at?: string
+          updated_by?: string | null
+          x?: number
+          y?: number
+        }
+        Update: {
+          board?: string
+          entity_id?: string
+          id?: string
+          owner?: string
+          updated_at?: string
+          updated_by?: string | null
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
+      app_companies: {
+        Row: {
+          color: string | null
+          created_at: string
+          frente_slug: string | null
+          id: string
+          is_active_default: boolean
+          logo_url: string | null
+          name: string
+          parent_id: string | null
+          position: number
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          frente_slug?: string | null
+          id?: string
+          is_active_default?: boolean
+          logo_url?: string | null
+          name: string
+          parent_id?: string | null
+          position?: number
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          frente_slug?: string | null
+          id?: string
+          is_active_default?: boolean
+          logo_url?: string | null
+          name?: string
+          parent_id?: string | null
+          position?: number
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_companies_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_company_clients: {
+        Row: {
+          client_id: string
+          company_id: string
+        }
+        Insert: {
+          client_id: string
+          company_id: string
+        }
+        Update: {
+          client_id?: string
+          company_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_company_clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_company_members: {
+        Row: {
+          company_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_company_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_company_roles: {
+        Row: {
+          company_id: string
+          role_id: string
+        }
+        Insert: {
+          company_id: string
+          role_id: string
+        }
+        Update: {
+          company_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_company_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_company_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronograma_checklist_itens: {
+        Row: {
+          checklist_id: string
+          done: boolean
+          id: string
+          position: number
+          text: string
+        }
+        Insert: {
+          checklist_id: string
+          done?: boolean
+          id?: string
+          position?: number
+          text: string
+        }
+        Update: {
+          checklist_id?: string
+          done?: boolean
+          id?: string
+          position?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronograma_checklist_itens_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronograma_checklists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronograma_checklists: {
+        Row: {
+          cronograma_id: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          cronograma_id: string
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          cronograma_id?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronograma_checklists_cronograma_id_fkey"
+            columns: ["cronograma_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronogramas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronograma_fases: {
+        Row: {
+          created_at: string
+          cronograma_id: string
+          end_date: string | null
+          id: string
+          interval_label: string | null
+          note: string | null
+          position: number
+          start_date: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cronograma_id: string
+          end_date?: string | null
+          id?: string
+          interval_label?: string | null
+          note?: string | null
+          position?: number
+          start_date?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cronograma_id?: string
+          end_date?: string | null
+          id?: string
+          interval_label?: string | null
+          note?: string | null
+          position?: number
+          start_date?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronograma_fases_cronograma_id_fkey"
+            columns: ["cronograma_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronogramas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronograma_itens: {
+        Row: {
+          created_at: string
+          cronograma_id: string
+          date: string | null
+          fase_id: string
+          id: string
+          position: number
+          status: string
+          task_id: string | null
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cronograma_id: string
+          date?: string | null
+          fase_id: string
+          id?: string
+          position?: number
+          status?: string
+          task_id?: string | null
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cronograma_id?: string
+          date?: string | null
+          fase_id?: string
+          id?: string
+          position?: number
+          status?: string
+          task_id?: string | null
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronograma_itens_cronograma_id_fkey"
+            columns: ["cronograma_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronogramas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_cronograma_itens_fase_id_fkey"
+            columns: ["fase_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronograma_fases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronograma_secoes: {
+        Row: {
+          body: Json
+          cronograma_id: string
+          id: string
+          kind: string
+          position: number
+          title: string
+        }
+        Insert: {
+          body?: Json
+          cronograma_id: string
+          id?: string
+          kind?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          body?: Json
+          cronograma_id?: string
+          id?: string
+          kind?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronograma_secoes_cronograma_id_fkey"
+            columns: ["cronograma_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronogramas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_cronogramas: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          current_fase_id: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          project_id: string | null
+          project_kind: string | null
+          share_token: string
+          start_date: string | null
+          template_key: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_fase_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          project_id?: string | null
+          project_kind?: string | null
+          share_token?: string
+          start_date?: string | null
+          template_key?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_fase_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          project_id?: string | null
+          project_kind?: string | null
+          share_token?: string
+          start_date?: string | null
+          template_key?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_cronogramas_current_fase_fk"
+            columns: ["current_fase_id"]
+            isOneToOne: false
+            referencedRelation: "app_cronograma_fases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_permissions: {
         Row: {
           area: string
@@ -446,6 +897,126 @@ export type Database = {
         }
         Relationships: []
       }
+      app_team_members: {
+        Row: {
+          is_lead: boolean
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          is_lead?: boolean
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          is_lead?: boolean
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "app_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_team_roles: {
+        Row: {
+          role_id: string
+          team_id: string
+        }
+        Insert: {
+          role_id: string
+          team_id: string
+        }
+        Update: {
+          role_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_team_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_team_roles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "app_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_teams: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_user_prefs: {
+        Row: {
+          active_company_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_company_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_company_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_user_prefs_active_company_id_fkey"
+            columns: ["active_company_id"]
+            isOneToOne: false
+            referencedRelation: "app_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_user_roles: {
         Row: {
           assigned_at: string
@@ -531,11 +1102,13 @@ export type Database = {
           description: string | null
           end_date: string | null
           event_type: string
+          google_event_id: string | null
           id: string
           is_all_day: boolean
           location: string | null
           start_date: string
           subtask_id: string | null
+          synced_from_google: boolean
           task_id: string | null
           title: string
           updated_at: string
@@ -548,11 +1121,13 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           event_type?: string
+          google_event_id?: string | null
           id?: string
           is_all_day?: boolean
           location?: string | null
           start_date: string
           subtask_id?: string | null
+          synced_from_google?: boolean
           task_id?: string | null
           title: string
           updated_at?: string
@@ -565,11 +1140,13 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           event_type?: string
+          google_event_id?: string | null
           id?: string
           is_all_day?: boolean
           location?: string | null
           start_date?: string
           subtask_id?: string | null
+          synced_from_google?: boolean
           task_id?: string | null
           title?: string
           updated_at?: string
@@ -1322,6 +1899,75 @@ export type Database = {
         }
         Relationships: []
       }
+      google_calendar_connections: {
+        Row: {
+          access_token: string
+          calendar_id: string
+          created_at: string
+          google_email: string | null
+          id: string
+          last_synced_at: string | null
+          refresh_token: string
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          calendar_id?: string
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          refresh_token: string
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          calendar_id?: string
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          last_synced_at?: string | null
+          refresh_token?: string
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lead_statuses: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1362,6 +2008,204 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_agent_activity: {
+        Row: {
+          agent_name: string
+          created_at: string
+          detail: string | null
+          event_type: string
+          id: string
+          link: string | null
+          project_id: string
+          roadmap_item_id: string | null
+          summary: string
+        }
+        Insert: {
+          agent_name: string
+          created_at?: string
+          detail?: string | null
+          event_type?: string
+          id?: string
+          link?: string | null
+          project_id: string
+          roadmap_item_id?: string | null
+          summary: string
+        }
+        Update: {
+          agent_name?: string
+          created_at?: string
+          detail?: string | null
+          event_type?: string
+          id?: string
+          link?: string | null
+          project_id?: string
+          roadmap_item_id?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_agent_activity_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "ops_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_agent_activity_roadmap_item_id_fkey"
+            columns: ["roadmap_item_id"]
+            isOneToOne: false
+            referencedRelation: "ops_roadmap_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_projects: {
+        Row: {
+          created_at: string
+          default_client_id: string | null
+          description: string | null
+          id: string
+          name: string
+          repo_url: string | null
+          slug: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          default_client_id?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          repo_url?: string | null
+          slug: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          default_client_id?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          repo_url?: string | null
+          slug?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_projects_default_client_id_fkey"
+            columns: ["default_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ops_roadmap_items: {
+        Row: {
+          agent_name: string | null
+          created_at: string
+          description: string | null
+          id: string
+          link: string | null
+          position: number
+          priority: string | null
+          project_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agent_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          link?: string | null
+          position?: number
+          priority?: string | null
+          project_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agent_name?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          link?: string | null
+          position?: number
+          priority?: string | null
+          project_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_roadmap_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "ops_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_messages: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          created_at: string
+          created_by_agent: string | null
+          error: string | null
+          id: string
+          lead_id: number
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          created_at?: string
+          created_by_agent?: string | null
+          error?: string | null
+          id?: string
+          lead_id: number
+          sent_at?: string | null
+          status?: string
+          subject: string
+          to_email: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          created_at?: string
+          created_by_agent?: string | null
+          error?: string | null
+          id?: string
+          lead_id?: number
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "vendas_leads"
             referencedColumns: ["id"]
           },
         ]
@@ -1838,6 +2682,218 @@ export type Database = {
           },
         ]
       }
+      social_day_markers: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          label: string
+          project_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          label: string
+          project_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          label?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_day_markers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "social_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_post_assets: {
+        Row: {
+          created_at: string
+          format: string
+          id: string
+          image_url: string
+          post_id: string
+          sort: number
+        }
+        Insert: {
+          created_at?: string
+          format?: string
+          id?: string
+          image_url: string
+          post_id: string
+          sort?: number
+        }
+        Update: {
+          created_at?: string
+          format?: string
+          id?: string
+          image_url?: string
+          post_id?: string
+          sort?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_post_assets_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "social_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_post_comments: {
+        Row: {
+          author_ip: unknown
+          author_name: string | null
+          author_user: string | null
+          body: string
+          created_at: string
+          id: string
+          post_id: string
+        }
+        Insert: {
+          author_ip?: unknown
+          author_name?: string | null
+          author_user?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          post_id: string
+        }
+        Update: {
+          author_ip?: unknown
+          author_name?: string | null
+          author_user?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "social_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_posts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          ideia: string | null
+          legenda: string | null
+          objetivo: string | null
+          platforms: string[]
+          position: number
+          project_id: string
+          status: string
+          task_id: string | null
+          time: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          ideia?: string | null
+          legenda?: string | null
+          objetivo?: string | null
+          platforms?: string[]
+          position?: number
+          project_id: string
+          status?: string
+          task_id?: string | null
+          time?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          ideia?: string | null
+          legenda?: string | null
+          objetivo?: string | null
+          platforms?: string[]
+          position?: number
+          project_id?: string
+          status?: string
+          task_id?: string | null
+          time?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "social_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_projects: {
+        Row: {
+          client_id: string | null
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          share_expires_at: string | null
+          share_last_viewed_at: string | null
+          share_token: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          share_expires_at?: string | null
+          share_last_viewed_at?: string | null
+          share_token?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          share_expires_at?: string | null
+          share_last_viewed_at?: string | null
+          share_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       specific_projects: {
         Row: {
           client_id: string | null
@@ -2135,7 +3191,10 @@ export type Database = {
       }
       tasks: {
         Row: {
+          agent_name: string | null
+          archived: boolean
           assigned_to: string | null
+          briefing: string | null
           client_id: string | null
           created_at: string
           created_by: string | null
@@ -2144,13 +3203,17 @@ export type Database = {
           due_date: string | null
           figma_link: string | null
           id: string
+          ops_project_id: string | null
           priority: string
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          agent_name?: string | null
+          archived?: boolean
           assigned_to?: string | null
+          briefing?: string | null
           client_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2159,13 +3222,17 @@ export type Database = {
           due_date?: string | null
           figma_link?: string | null
           id?: string
+          ops_project_id?: string | null
           priority?: string
           status?: string
           title: string
           updated_at?: string
         }
         Update: {
+          agent_name?: string | null
+          archived?: boolean
           assigned_to?: string | null
+          briefing?: string | null
           client_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2174,6 +3241,7 @@ export type Database = {
           due_date?: string | null
           figma_link?: string | null
           id?: string
+          ops_project_id?: string | null
           priority?: string
           status?: string
           title?: string
@@ -2185,6 +3253,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_ops_project_id_fkey"
+            columns: ["ops_project_id"]
+            isOneToOne: false
+            referencedRelation: "ops_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2248,6 +3323,7 @@ export type Database = {
           responsavel: string | null
           segmento: string | null
           status: string
+          unidade: string
           valor_estimado: number
         }
         Insert: {
@@ -2264,6 +3340,7 @@ export type Database = {
           responsavel?: string | null
           segmento?: string | null
           status?: string
+          unidade?: string
           valor_estimado?: number
         }
         Update: {
@@ -2280,17 +3357,10 @@ export type Database = {
           responsavel?: string | null
           segmento?: string | null
           status?: string
+          unidade?: string
           valor_estimado?: number
         }
-        Relationships: [
-          {
-            foreignKeyName: "vendas_leads_proposta_slug_fkey"
-            columns: ["proposta_slug"]
-            isOneToOne: false
-            referencedRelation: "propostas"
-            referencedColumns: ["slug"]
-          },
-        ]
+        Relationships: []
       }
       vendas_metas: {
         Row: {
@@ -2378,6 +3448,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      app_effective_roles: {
+        Args: { uid: string }
+        Returns: {
+          role_color: string
+          role_id: string
+          role_name: string
+          source: string
+        }[]
+      }
+      app_effective_roles_all: {
+        Args: never
+        Returns: {
+          role_color: string
+          role_id: string
+          role_name: string
+          source: string
+          user_id: string
+        }[]
+      }
       app_has_permission: {
         Args: { perm: string; uid: string }
         Returns: boolean
@@ -2419,11 +3508,81 @@ export type Database = {
         Args: { admin_user_id: string; target_user_id: string }
         Returns: boolean
       }
+      get_cronograma_by_token: { Args: { p_token: string }; Returns: Json }
+      get_social_share: { Args: { p_token: string }; Returns: Json }
       get_user_role: { Args: { user_id: string }; Returns: string }
       get_user_role_safe: { Args: { user_id: string }; Returns: string }
+      log_social_share_open: {
+        Args: { p_ip: string; p_token: string }
+        Returns: undefined
+      }
+      ops_agent_upsert_task: {
+        Args: {
+          p_agent_name: string
+          p_description?: string
+          p_due_date?: string
+          p_link?: string
+          p_priority?: string
+          p_project_slug: string
+          p_status?: string
+          p_task_id?: string
+          p_title?: string
+        }
+        Returns: string
+      }
+      ops_ensure_project: {
+        Args: { p_name?: string; p_slug: string }
+        Returns: string
+      }
+      ops_report_activity: {
+        Args: {
+          p_agent_name: string
+          p_detail?: string
+          p_event_type?: string
+          p_link?: string
+          p_project_slug: string
+          p_roadmap_item_id?: string
+          p_summary: string
+        }
+        Returns: string
+      }
+      ops_upsert_roadmap_item: {
+        Args: {
+          p_agent_name?: string
+          p_description?: string
+          p_item_id?: string
+          p_link?: string
+          p_priority?: string
+          p_project_slug: string
+          p_status?: string
+          p_title?: string
+        }
+        Returns: string
+      }
       reject_user: {
         Args: { rejected_by_id: string; user_profile_id: string }
         Returns: boolean
+      }
+      social_public_comment: {
+        Args: {
+          p_body: string
+          p_ip: string
+          p_name: string
+          p_post_id: string
+          p_token: string
+        }
+        Returns: undefined
+      }
+      social_public_review: {
+        Args: {
+          p_comment: string
+          p_decision: string
+          p_ip: string
+          p_name: string
+          p_post_id: string
+          p_token: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

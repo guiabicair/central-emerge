@@ -17,6 +17,7 @@ import { actionError } from "@/lib/utils";
 export interface OutreachRow {
   id: string;
   leadId: number;
+  unidade: string;
   empresa: string;
   toEmail: string;
   subject: string;

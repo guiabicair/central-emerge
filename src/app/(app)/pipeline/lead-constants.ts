@@ -20,6 +20,14 @@ export const LEAD_FRENTE = [
 ] as const;
 export type LeadFrente = (typeof LEAD_FRENTE)[number];
 
+/** Unidade de negócio (migration 0028) — funis separados no mesmo pipeline. */
+export const LEAD_UNIDADE = ["labs", "tech"] as const;
+export type LeadUnidade = (typeof LEAD_UNIDADE)[number];
+export const UNIDADE_LABEL: Record<LeadUnidade, string> = {
+  labs: "Emerge Labs",
+  tech: "Emerge Tech",
+};
+
 /** Paleta de cor das colunas — mesmo conjunto de task-constants.ts. */
 export const STATUS_COLORS = [
   "slate",
@@ -63,6 +71,7 @@ export const colDot = (color: string) =>
 export interface LeadInput {
   id?: number;
   empresa: string;
+  unidade: LeadUnidade;
   frente: LeadFrente;
   segmento?: string;
   contato?: string;

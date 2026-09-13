@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { DragEvent } from "react";
 import dynamic from "next/dynamic";
 import {
+  Code2,
   Columns3,
   ExternalLink,
   GripVertical,
   KanbanSquare,
   Mail,
+  Megaphone,
   Pencil,
   Plus,
   Trash2,
@@ -29,11 +31,14 @@ import {
 } from "@/app/(app)/pipeline/actions";
 import {
   LEAD_FRENTE,
+  LEAD_UNIDADE,
   STATUS_COLORS,
+  UNIDADE_LABEL,
   colDot,
   colLabel,
   type LeadFrente,
   type LeadInput,
+  type LeadUnidade,
   type StatusCol,
 } from "@/app/(app)/pipeline/lead-constants";
 import { ColumnManager } from "@/components/shared/column-manager";
@@ -65,6 +70,7 @@ const PipelineCanvas = dynamic(
 export interface LeadRow {
   id: number;
   empresa: string;
+  unidade: string;
   frente: string;
   segmento: string | null;
   contato: string | null;
@@ -90,6 +96,7 @@ const FRENTE_LABEL: Record<string, string> = {
 
 const BLANK: LeadInput = {
   empresa: "",
+  unidade: "labs",
   frente: "outro",
   segmento: "",
   contato: "",
@@ -105,6 +112,9 @@ function toInput(l: LeadRow, fallbackStatus: string): LeadInput {
   return {
     id: l.id,
     empresa: l.empresa,
+    unidade: (LEAD_UNIDADE as readonly string[]).includes(l.unidade)
+      ? (l.unidade as LeadUnidade)
+      : "labs",
     frente: (LEAD_FRENTE as readonly string[]).includes(l.frente)
       ? (l.frente as LeadFrente)
       : "outro",
@@ -174,6 +184,22 @@ function LeadForm({
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="text-ink-muted text-[11px] font-semibold uppercase">
+              Unidade *
+            </span>
+            <select
+              value={form.unidade}
+              onChange={(e) => set("unidade", e.target.value as LeadUnidade)}
+              className={`mt-1 ${inputCls}`}
+            >
+              {LEAD_UNIDADE.map((u) => (
+                <option key={u} value={u}>
+                  {UNIDADE_LABEL[u]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-ink-muted text-[11px] font-semibold uppercase">
               Frente *
             </span>
             <select
@@ -188,23 +214,23 @@ function LeadForm({
               ))}
             </select>
           </label>
-          <label className="block">
-            <span className="text-ink-muted text-[11px] font-semibold uppercase">
-              Estágio
-            </span>
-            <select
-              value={form.status}
-              onChange={(e) => set("status", e.target.value)}
-              className={`mt-1 ${inputCls}`}
-            >
-              {statuses.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {colLabel(c.name)}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
+        <label className="block">
+          <span className="text-ink-muted text-[11px] font-semibold uppercase">
+            Estágio
+          </span>
+          <select
+            value={form.status}
+            onChange={(e) => set("status", e.target.value)}
+            className={`mt-1 ${inputCls}`}
+          >
+            {statuses.map((c) => (
+              <option key={c.id} value={c.name}>
+                {colLabel(c.name)}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="text-ink-muted text-[11px] font-semibold uppercase">
@@ -477,6 +503,7 @@ export function PipelineBoard({
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
   const [closingDeal, setClosingDeal] = useState<LeadRow | null>(null);
   const [view, setView] = useState<"board" | "canvas" | "outreach">("board");
+  const [unit, setUnit] = useState<LeadUnidade>("labs");
   const [manageCols, setManageCols] = useState(false);
   const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -484,16 +511,25 @@ export function PipelineBoard({
 
   useEffect(() => setLeads(leadsProp), [leadsProp]);
 
+  const leadsForUnit = useMemo(
+    () => leads.filter((l) => l.unidade === unit),
+    [leads, unit],
+  );
+  const outreachForUnit = useMemo(
+    () => outreach.filter((o) => o.unidade === unit),
+    [outreach, unit],
+  );
+
   const byColumn = useMemo(() => {
     const map = new Map<string, LeadRow[]>();
     for (const c of cols) map.set(c.name, []);
-    for (const l of leads) {
+    for (const l of leadsForUnit) {
       (map.get(l.status) ?? map.get(fallbackStatus))?.push(l);
     }
     return map;
-  }, [leads, cols, fallbackStatus]);
+  }, [leadsForUnit, cols, fallbackStatus]);
 
-  const totalValor = leads.reduce((s, l) => s + (l.valor_estimado || 0), 0);
+  const totalValor = leadsForUnit.reduce((s, l) => s + (l.valor_estimado || 0), 0);
 
   const doMove = (lead: LeadRow, status: string) => {
     if (lead.status === status) return;
@@ -575,10 +611,28 @@ export function PipelineBoard({
   return (
     <>
       <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-6">
-        <span className="text-ink-muted text-xs">
-          {leads.length} leads · {formatCurrency(totalValor)} estimado ·{" "}
-          <span>gerados pelo Radar + manuais</span>
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={unit} onValueChange={(v) => setUnit(v as LeadUnidade)}>
+            <TabsList>
+              <TabsTrigger value="labs">
+                <Code2 className="size-4" />
+                {UNIDADE_LABEL.labs}
+              </TabsTrigger>
+              <TabsTrigger value="tech">
+                <Megaphone className="size-4" />
+                {UNIDADE_LABEL.tech}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <span className="text-ink-muted text-xs">
+            {leadsForUnit.length} leads · {formatCurrency(totalValor)} estimado ·{" "}
+            <span>
+              {unit === "labs"
+                ? "gerados pelo Radar + manuais"
+                : "gerados pela captação automática + manuais"}
+            </span>
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {!loadError && (
             <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
@@ -594,9 +648,9 @@ export function PipelineBoard({
                 <TabsTrigger value="outreach">
                   <Mail className="size-4" />
                   Outreach
-                  {outreach.some((o) => o.status === "draft") && (
+                  {outreachForUnit.some((o) => o.status === "draft") && (
                     <span className="bg-warn ml-1 rounded-full px-1.5 text-[10px] text-[#0a0b0c]">
-                      {outreach.filter((o) => o.status === "draft").length}
+                      {outreachForUnit.filter((o) => o.status === "draft").length}
                     </span>
                   )}
                 </TabsTrigger>
@@ -609,7 +663,10 @@ export function PipelineBoard({
                 <Columns3 className="size-4" />
                 Colunas
               </Button>
-              <Button size="sm" onClick={() => setEditing({ ...BLANK, status: fallbackStatus })}>
+              <Button
+                size="sm"
+                onClick={() => setEditing({ ...BLANK, unidade: unit, status: fallbackStatus })}
+              >
                 <Plus className="size-4" />
                 Novo lead
               </Button>
@@ -629,16 +686,16 @@ export function PipelineBoard({
           </div>
         </div>
       ) : view === "outreach" ? (
-        <OutreachPanel rows={outreach} />
+        <OutreachPanel rows={outreachForUnit} />
       ) : view === "canvas" ? (
         <div className="border-line min-h-0 flex-1 border-t">
           <PipelineCanvas
-            leads={leads}
+            leads={leadsForUnit}
             statuses={cols}
             snapshot={canvas}
             canManage={canManage}
             onOpenLead={(id) => {
-              const l = leads.find((x) => x.id === id);
+              const l = leadsForUnit.find((x) => x.id === id);
               if (l) setEditing(toInput(l, fallbackStatus));
             }}
           />
