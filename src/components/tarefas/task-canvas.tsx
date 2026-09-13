@@ -21,13 +21,21 @@ import { formatDate } from "@/lib/utils";
 const PERSON_PREFIX = "person:";
 const AGENT_PREFIX = "agent:";
 const CLIENT_PREFIX = "client:";
+const MORE_PREFIX = "more:";
 const NONE_PERSON = `${PERSON_PREFIX}none`;
 const NONE_CLIENT = `${CLIENT_PREFIX}none`;
+
+/** Mesma convenção usada no board (tasks-board.tsx) pro filtro "atrasadas". */
+const DONE_STATUSES = new Set(["completed", "cancelled"]);
+
+/** Quantas tarefas mostrar por cliente/pessoa antes de precisar expandir — a coluna virava uma parede sem isso. */
+const TASKS_PER_BRANCH = 6;
 
 const SIZE = {
   task: { w: 224, h: 108 },
   person: { w: 180, h: 44 },
   client: { w: 180, h: 48 },
+  more: { w: 224, h: 40 },
 } as const;
 
 /** Layout em árvore: responsável → cliente → tarefa (dagre calcula os rankos pela topologia). */
@@ -81,6 +89,13 @@ export function TaskCanvas({
   );
 
   const [showOrphans, setShowOrphans] = useState(false);
+  const [hideDone, setHideDone] = useState(true);
+  const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
+
+  const doneCount = useMemo(
+    () => tasks.filter((t) => DONE_STATUSES.has(t.status)).length,
+    [tasks],
+  );
 
   const { nodes, fallbackLayout, derivedEdges, orphanCount } = useMemo(() => {
     const derivedEdges: DerivedEdge[] = [];
@@ -90,7 +105,34 @@ export function TaskCanvas({
     let needsNonePerson = false;
     let needsNoneClient = false;
 
-    const taskNodes = tasks.map((task) => {
+    const baseTasks = hideDone ? tasks.filter((t) => !DONE_STATUSES.has(t.status)) : tasks;
+
+    // Agrupa por cliente (a "coluna" visual do dagre) pra poder limitar quantas
+    // tarefas cada branch mostra de cara, com um nó "+N mais" pra expandir.
+    const branches = new Map<string, TaskRow[]>();
+    for (const task of baseTasks) {
+      const clientRef = task.clientId ? `${CLIENT_PREFIX}${task.clientId}` : NONE_CLIENT;
+      const list = branches.get(clientRef);
+      if (list) list.push(task);
+      else branches.set(clientRef, [task]);
+    }
+
+    const visibleTasks: TaskRow[] = [];
+    const moreNodes: { id: string; clientRef: string; hiddenCount: number }[] = [];
+    for (const [clientRef, branchTasks] of branches) {
+      if (expandedBranches.has(clientRef) || branchTasks.length <= TASKS_PER_BRANCH) {
+        visibleTasks.push(...branchTasks);
+      } else {
+        visibleTasks.push(...branchTasks.slice(0, TASKS_PER_BRANCH));
+        moreNodes.push({
+          id: `${MORE_PREFIX}${clientRef}`,
+          clientRef,
+          hiddenCount: branchTasks.length - TASKS_PER_BRANCH,
+        });
+      }
+    }
+
+    const taskNodes = visibleTasks.map((task) => {
       const statusCol = cols.get(task.status);
 
       const responsibleRefs = task.assignees.map((uid) => {
@@ -150,6 +192,21 @@ export function TaskCanvas({
               )}
             </div>
           </div>
+        ),
+      };
+    });
+
+    const moreTaskNodes = moreNodes.map(({ id, clientRef, hiddenCount }) => {
+      derivedEdges.push({ id: `ct:${clientRef}:${id}`, source: clientRef, target: id });
+      return {
+        id,
+        body: (
+          <button
+            type="button"
+            className="flex w-[224px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-[#141719]/60 px-3 py-2.5 text-[12px] font-medium text-[#8b918f] hover:text-[#eef1f0]"
+          >
+            +{hiddenCount} mais
+          </button>
         ),
       };
     });
@@ -243,17 +300,18 @@ export function TaskCanvas({
       });
     }
 
-    const allNodes = [...personNodes, ...agentNodes, ...clientNodes, ...taskNodes];
+    const allNodes = [...personNodes, ...agentNodes, ...clientNodes, ...taskNodes, ...moreTaskNodes];
     const layoutItems: { id: string; kind: keyof typeof SIZE }[] = [
       ...personNodes.map((n) => ({ id: n.id, kind: "person" as const })),
       ...agentNodes.map((n) => ({ id: n.id, kind: "person" as const })),
       ...clientNodes.map((n) => ({ id: n.id, kind: "client" as const })),
       ...taskNodes.map((n) => ({ id: n.id, kind: "task" as const })),
+      ...moreTaskNodes.map((n) => ({ id: n.id, kind: "more" as const })),
     ];
     const fallbackLayout = dagreLayout(layoutItems, derivedEdges);
 
     return { nodes: allNodes, fallbackLayout, derivedEdges, orphanCount };
-  }, [tasks, cols, people, showOrphans]);
+  }, [tasks, cols, people, showOrphans, hideDone, expandedBranches]);
 
   const handleConnect = async (source: string, target: string) => {
     // só task ↔ pessoa vira atribuição de verdade; o resto continua anotação livre.
@@ -278,9 +336,17 @@ export function TaskCanvas({
   const router = useRouter();
 
   const isEntity = (id: string) =>
-    !id.startsWith(PERSON_PREFIX) && !id.startsWith(AGENT_PREFIX) && !id.startsWith(CLIENT_PREFIX);
+    !id.startsWith(PERSON_PREFIX) &&
+    !id.startsWith(AGENT_PREFIX) &&
+    !id.startsWith(CLIENT_PREFIX) &&
+    !id.startsWith(MORE_PREFIX);
 
   const handleOpenNode = (id: string) => {
+    if (id.startsWith(MORE_PREFIX)) {
+      const clientRef = id.slice(MORE_PREFIX.length);
+      setExpandedBranches((prev) => new Set(prev).add(clientRef));
+      return;
+    }
     if (isEntity(id)) {
       onOpenTask(id);
       return;
@@ -308,8 +374,20 @@ export function TaskCanvas({
         onOpenEntity={handleOpenNode}
         onBeforeConnect={handleConnect}
       />
-      {orphanCount > 0 && (
-        <div className="absolute top-3 left-3 z-10">
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2">
+        {doneCount > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setHideDone((v) => !v)}
+          >
+            {hideDone ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {hideDone
+              ? `Mostrar concluídas/canceladas (${doneCount})`
+              : `Ocultar concluídas/canceladas (${doneCount})`}
+          </Button>
+        )}
+        {orphanCount > 0 && (
           <Button
             size="sm"
             variant="outline"
@@ -320,8 +398,8 @@ export function TaskCanvas({
               ? `Ocultar sem vínculo (${orphanCount})`
               : `Mostrar sem vínculo (${orphanCount})`}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       {canManage && (
         <div className="absolute top-3 right-3 z-10">
           <Button size="sm" onClick={onCreateTask}>
