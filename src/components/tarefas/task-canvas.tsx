@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import dagre from "@dagrejs/dagre";
 import { Bot, Building2, Plus, User } from "lucide-react";
 import { toast } from "sonner";
@@ -254,8 +255,26 @@ export function TaskCanvas({
     return false; // não cria aresta manual — a real aparece via derivedEdges no refresh
   };
 
+  const router = useRouter();
+
   const isEntity = (id: string) =>
     !id.startsWith(PERSON_PREFIX) && !id.startsWith(AGENT_PREFIX) && !id.startsWith(CLIENT_PREFIX);
+
+  const handleOpenNode = (id: string) => {
+    if (isEntity(id)) {
+      onOpenTask(id);
+      return;
+    }
+    if (id.startsWith(CLIENT_PREFIX) && id !== NONE_CLIENT) {
+      router.push(`/clientes/${id.slice(CLIENT_PREFIX.length)}`);
+      return;
+    }
+    if (id.startsWith(PERSON_PREFIX) && id !== NONE_PERSON) {
+      router.push(`/equipe/pessoas?highlight=${id.slice(PERSON_PREFIX.length)}`);
+      return;
+    }
+    // nós de agente e placeholders ("sem responsável"/"sem cliente") não têm perfil pra abrir.
+  };
 
   return (
     <div className="relative h-full w-full">
@@ -266,7 +285,7 @@ export function TaskCanvas({
         fallbackLayout={fallbackLayout}
         snapshot={snapshot}
         derivedEdges={derivedEdges}
-        onOpenEntity={(id) => isEntity(id) && onOpenTask(id)}
+        onOpenEntity={handleOpenNode}
         onBeforeConnect={handleConnect}
       />
       {canManage && (

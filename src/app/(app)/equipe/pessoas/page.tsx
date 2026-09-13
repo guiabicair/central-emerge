@@ -5,8 +5,13 @@ import { can, listRoles, listTeam } from "@/lib/auth/roles";
 
 export const metadata = { title: "Pessoas · Central Emerge" };
 
-export default async function PessoasPage() {
-  const [members, roles, canApprove, canManageRoles] = await Promise.all([
+export default async function PessoasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ highlight?: string }>;
+}) {
+  const [{ highlight }, members, roles, canApprove, canManageRoles] = await Promise.all([
+    searchParams,
     listTeam(),
     listRoles(),
     can("equipe.approve_users"),
@@ -28,6 +33,7 @@ export default async function PessoasPage() {
           roles={roles}
           canApprove={canApprove}
           canManageRoles={canManageRoles}
+          highlightUserId={highlight}
         />
       </div>
     </>

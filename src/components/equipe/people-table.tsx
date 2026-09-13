@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import type { AppRoleWithPerms, TeamMember } from "@/lib/auth/roles";
@@ -28,14 +28,26 @@ export function PeopleTable({
   roles,
   canApprove,
   canManageRoles,
+  highlightUserId,
 }: {
   members: TeamMember[];
   roles: AppRoleWithPerms[];
   canApprove: boolean;
   canManageRoles: boolean;
+  highlightUserId?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [busyRow, setBusyRow] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLTableRowElement | null>(null);
+  const [highlighted, setHighlighted] = useState(highlightUserId);
+
+  useEffect(() => {
+    setHighlighted(highlightUserId);
+    if (!highlightUserId) return;
+    highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setHighlighted(undefined), 2500);
+    return () => clearTimeout(t);
+  }, [highlightUserId]);
 
   function run(userId: string, fn: () => Promise<void>) {
     setBusyRow(userId);
@@ -74,12 +86,15 @@ export function PeopleTable({
             const nome = m.full_name?.trim() || m.email.split("@")[0];
             const status = STATUS_META[m.approval_status ?? "approved"];
             const rowBusy = pending && busyRow === m.user_id;
+            const isHighlighted = highlighted === m.user_id;
             return (
               <tr
                 key={m.user_id}
+                ref={isHighlighted ? highlightRef : undefined}
                 className={cn(
-                  "border-border/60 border-b align-top transition-opacity",
+                  "border-border/60 border-b align-top transition-[opacity,background-color] duration-700",
                   rowBusy && "opacity-50",
+                  isHighlighted && "bg-[#45f0d1]/10",
                 )}
               >
                 <td className="px-4 py-3 md:px-6">
