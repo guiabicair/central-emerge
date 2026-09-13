@@ -21,6 +21,7 @@ import {
   disconnectGoogleCalendar,
   syncGoogleCalendarNow,
 } from "@/app/(app)/configuracoes/actions";
+import { PushNotificationsRow } from "@/components/settings/push-notifications-row";
 import { StatusPill } from "@/components/status-pill";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -302,6 +303,7 @@ export function SettingsView({
               </p>
               <div className="space-y-2">
                 <GoogleCalendarRow googleCalendar={googleCalendar} />
+                <PushNotificationsRow />
                 <IntegrationRow
                   icon={HardDrive}
                   nome="Google Drive"

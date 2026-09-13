@@ -22,6 +22,7 @@ export const STATUS_LABEL: Record<string, string> = {
   completed: "Concluída",
   cancelled: "Cancelada",
   revisao: "Revisão",
+  blocked: "Bloqueada",
 };
 
 /** Paleta de cor das colunas (palavra -> token). */

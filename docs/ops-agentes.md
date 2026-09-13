@@ -73,3 +73,29 @@ ativas se algum agente quiser logar algo que não é uma tarefa (ex: "comecei a
 investigar X"), mas isso não aparece em nenhuma tela hoje — é só um registro cru em
 `ops_agent_activity`/`ops_roadmap_items`. Pra aparecer na Central, use
 `ops_agent_upsert_task`.
+
+## Alerta ativo quando algo quebra (migration 0031)
+
+Até 13/09/2026, uma falha de rotina (ex: Gmail desconectado, erro na hora de
+enviar outreach) só ficava registrada em texto livre na `description` da
+task viva do agente — só se descobria entrando lá. Agora existe um caminho
+estruturado que dispara notificação push de verdade (ver `ops_alerts` +
+`push_subscriptions`, painel em Configurações → Integrações → "Notificações
+push"):
+
+- Reportando **numa task existente**: chame `ops_agent_upsert_task` com
+  `p_status: "blocked"` (além de continuar atualizando a `description` com o
+  resumo). Isso dispara um alerta automaticamente (trigger em `tasks`).
+- Reportando **sem task** (ex: rotina cloud contínua tipo Outreach/Captação,
+  que nunca marca a task como completed): chame `ops_report_activity` com
+  `p_event_type: "blocked"` e `p_summary`/`p_detail` explicando o que quebrou
+  (ex: "Gmail desconectado — refresh_token inválido"). Isso também dispara
+  o alerta (trigger em `ops_agent_activity`), sem precisar mexer no status
+  da task viva.
+
+Nos dois casos, o alerta só dispara na TRANSIÇÃO pra 'blocked' (ou no
+`INSERT` do evento) — não fica repetindo a cada rodada se a rotina continuar
+reportando o mesmo problema. Se resolver e quebrar de novo depois, volte o
+status pra `in_progress`/`pending` e depois pra `blocked` de novo (ou
+mande outro `ops_report_activity` com `event_type: "blocked"`) pra reabrir
+o alerta.
