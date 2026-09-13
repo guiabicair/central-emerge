@@ -8,6 +8,7 @@ import {
   ExternalLink,
   GripVertical,
   KanbanSquare,
+  Mail,
   Pencil,
   Plus,
   Trash2,
@@ -36,6 +37,7 @@ import {
   type StatusCol,
 } from "@/app/(app)/pipeline/lead-constants";
 import { ColumnManager } from "@/components/shared/column-manager";
+import { OutreachPanel, type OutreachRow } from "@/components/pipeline/outreach-panel";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -456,12 +458,14 @@ export function PipelineBoard({
   canManage,
   loadError,
   canvas,
+  outreach,
 }: {
   leads: LeadRow[];
   statuses: StatusCol[];
   canManage: boolean;
   loadError: string | null;
   canvas: CanvasSnapshot;
+  outreach: OutreachRow[];
 }) {
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
@@ -472,7 +476,7 @@ export function PipelineBoard({
   const [editing, setEditing] = useState<LeadInput | null>(null);
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
   const [closingDeal, setClosingDeal] = useState<LeadRow | null>(null);
-  const [view, setView] = useState<"board" | "canvas">("board");
+  const [view, setView] = useState<"board" | "canvas" | "outreach">("board");
   const [manageCols, setManageCols] = useState(false);
   const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -587,10 +591,19 @@ export function PipelineBoard({
                   <Workflow className="size-4" />
                   Canvas
                 </TabsTrigger>
+                <TabsTrigger value="outreach">
+                  <Mail className="size-4" />
+                  Outreach
+                  {outreach.some((o) => o.status === "draft") && (
+                    <span className="bg-warn ml-1 rounded-full px-1.5 text-[10px] text-[#0a0b0c]">
+                      {outreach.filter((o) => o.status === "draft").length}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           )}
-          {canManage && (
+          {canManage && view !== "outreach" && (
             <>
               <Button variant="outline" size="sm" onClick={() => setManageCols(true)}>
                 <Columns3 className="size-4" />
@@ -615,6 +628,8 @@ export function PipelineBoard({
             </p>
           </div>
         </div>
+      ) : view === "outreach" ? (
+        <OutreachPanel rows={outreach} />
       ) : view === "canvas" ? (
         <div className="border-line min-h-0 flex-1 border-t">
           <PipelineCanvas
