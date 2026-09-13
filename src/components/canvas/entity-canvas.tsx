@@ -83,7 +83,7 @@ export function EntityCanvas({
   onOpenEntity,
   onBeforeConnect,
 }: EntityCanvasProps) {
-  const { persistMove, addEdge, removeEdge } = useCanvasPersistence(
+  const { persistMove, persistColor, addEdge, removeEdge } = useCanvasPersistence(
     board,
     canManage,
   );
@@ -95,10 +95,30 @@ export function EntityCanvas({
   const manualIds = useRef<Set<string>>(new Set());
   // posições que o usuário já arrastou nesta sessão (não sobrescrever no rebuild)
   const draggedPos = useRef<Record<string, { x: number; y: number }>>({});
+  // cores que o usuário já trocou nesta sessão (não sobrescrever no rebuild)
+  const coloredOverride = useRef<Record<string, string | null>>({});
   // callback de abrir — via ref pra não recriar o effect (evita loop de render)
   const onOpenRef = useRef(onOpenEntity);
   onOpenRef.current = onOpenEntity;
   const openStable = useRef((id: string) => onOpenRef.current?.(id)).current;
+
+  const handleColorChange = useCallback(
+    (entityId: string, color: string | null) => {
+      coloredOverride.current[entityId] = color;
+      persistColor(entityId, color);
+      setRfNodes((nds) =>
+        nds.map((n) =>
+          n.id === entityId ? { ...n, data: { ...n.data, color } } : n,
+        ),
+      );
+    },
+    [persistColor, setRfNodes],
+  );
+  const onColorRef = useRef(handleColorChange);
+  onColorRef.current = handleColorChange;
+  const colorStable = useRef(
+    (entityId: string, color: string | null) => onColorRef.current(entityId, color),
+  ).current;
 
   const handleDeleteEdge = useCallback(
     (id: string) => {
@@ -128,10 +148,25 @@ export function EntityCanvas({
         draggable: n.draggable ?? true,
         connectable: n.connectable ?? true,
         selectable: n.draggable ?? true,
-        data: { body: n.body, onOpen: openStable },
+        data: {
+          body: n.body,
+          onOpen: openStable,
+          canManage,
+          color: coloredOverride.current[n.id] ?? snapshot.colors[n.id] ?? null,
+          onColorChange: colorStable,
+        },
       })),
     );
-  }, [entityNodes, snapshot.positions, fallbackLayout, openStable, setRfNodes]);
+  }, [
+    entityNodes,
+    snapshot.positions,
+    snapshot.colors,
+    fallbackLayout,
+    openStable,
+    colorStable,
+    canManage,
+    setRfNodes,
+  ]);
 
   useEffect(() => {
     manualIds.current = new Set(snapshot.edges.map((e) => e.id));

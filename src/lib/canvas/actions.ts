@@ -38,6 +38,30 @@ export async function saveNodePosition(
   // sem revalidatePath: arrastar não deve recarregar a página.
 }
 
+/** Salva (upsert) a cor de um nó no layout compartilhado do board. `null` limpa a cor. */
+export async function saveNodeColor(
+  board: string,
+  entityId: string,
+  color: string | null,
+) {
+  await guard(board);
+  if (!board || !entityId) throw new Error("board/entidade ausente.");
+  const user = await getUser();
+  const supabase = await createUntypedClient();
+  const { error } = await supabase.from("app_canvas_nodes").upsert(
+    {
+      board,
+      entity_id: entityId,
+      color,
+      owner: SHARED_OWNER,
+      updated_by: user?.id ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "board,entity_id,owner" },
+  );
+  if (error) throw new Error(error.message);
+}
+
 /** Cria uma aresta manual entre duas entidades. */
 export async function createCanvasEdge(
   board: string,

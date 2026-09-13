@@ -19,5 +19,16 @@ export interface CanvasEdge {
 /** dados vindos do servidor pra hidratar o <EntityCanvas>. */
 export interface CanvasSnapshot {
   positions: Record<string, { x: number; y: number }>;
+  colors: Record<string, string>;
   edges: CanvasEdge[];
 }
+
+/** paleta padrão de recolorir nós — mesma da Equipe → Organização (org-view.tsx). */
+export const NODE_COLORS = [
+  "#45f0d1",
+  "#c9ff3f",
+  "#93a6ff",
+  "#fbbf24",
+  "#ff8f6b",
+  "#c98bff",
+] as const;

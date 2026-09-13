@@ -8,6 +8,7 @@ import { actionError } from "@/lib/utils";
 import {
   createCanvasEdge,
   deleteCanvasEdge,
+  saveNodeColor,
   saveNodePosition,
 } from "@/lib/canvas/actions";
 
@@ -46,6 +47,17 @@ export function useCanvasPersistence(board: string, canManage: boolean) {
     [board, canManage],
   );
 
+  const persistColor = useCallback(
+    (entityId: string, color: string | null) => {
+      if (!canManage) return;
+      saveNodeColor(board, entityId, color).catch((e) => {
+        if (!backendNotReady(e))
+          toast.error(actionError(e, "Falhou ao salvar cor"));
+      });
+    },
+    [board, canManage],
+  );
+
   const addEdge = useCallback(
     async (source: string, target: string, label?: string) => {
       if (!canManage) return null;
@@ -74,5 +86,5 @@ export function useCanvasPersistence(board: string, canManage: boolean) {
     [board, canManage],
   );
 
-  return { persistMove, addEdge, removeEdge };
+  return { persistMove, persistColor, addEdge, removeEdge };
 }

@@ -13,7 +13,7 @@ export async function getCanvasSnapshot(board: string): Promise<CanvasSnapshot> 
   const [nodesRes, edgesRes] = await Promise.all([
     supabase
       .from("app_canvas_nodes")
-      .select("entity_id, x, y")
+      .select("entity_id, x, y, color")
       .eq("board", board)
       .eq("owner", SHARED_OWNER),
     supabase
@@ -24,12 +24,15 @@ export async function getCanvasSnapshot(board: string): Promise<CanvasSnapshot> 
   ]);
 
   const positions: CanvasSnapshot["positions"] = {};
+  const colors: CanvasSnapshot["colors"] = {};
   for (const n of (nodesRes.data ?? []) as {
     entity_id: string;
     x: number;
     y: number;
+    color: string | null;
   }[]) {
     positions[n.entity_id] = { x: Number(n.x) || 0, y: Number(n.y) || 0 };
+    if (n.color) colors[n.entity_id] = n.color;
   }
 
   const edges = ((edgesRes.data ?? []) as {
@@ -44,5 +47,5 @@ export async function getCanvasSnapshot(board: string): Promise<CanvasSnapshot> 
     label: e.label,
   }));
 
-  return { positions, edges };
+  return { positions, colors, edges };
 }
