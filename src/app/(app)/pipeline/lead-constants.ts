@@ -16,6 +16,7 @@ export const LEAD_FRENTE = [
   "grupo_today_os",
   "emerge_financeiro",
   "emerge_propostas_dev",
+  "eventos",
   "outro",
 ] as const;
 export type LeadFrente = (typeof LEAD_FRENTE)[number];

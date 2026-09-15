@@ -92,6 +92,7 @@ const FRENTE_LABEL: Record<string, string> = {
   grupo_today_os: "Grupo Today OS",
   emerge_financeiro: "Emerge Financeiro",
   emerge_propostas_dev: "Emerge Propostas (dev)",
+  eventos: "Eventos",
   outro: "Outro",
 };
 
