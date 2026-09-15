@@ -6,6 +6,7 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ChevronDown, ChevronRight, Palette, Pencil } from "lucide-react";
 
 import { NODE_COLORS } from "@/lib/canvas/types";
+import { cn } from "@/lib/utils";
 
 export interface EntityNodeData {
   body: ReactNode;
@@ -23,6 +24,11 @@ export interface EntityNodeData {
   /** presente = o nó pode ser colapsado (esconde os filhos); `collapsed` diz o estado atual. */
   onToggleCollapse?: (id: string) => void;
   collapsed?: boolean;
+  /**
+   * Resultado da busca textual do canvas: `true` = bate a busca (realça),
+   * `false` = não bate (esmaece), `undefined` = busca vazia (normal).
+   */
+  matched?: boolean;
   [key: string]: unknown;
 }
 
@@ -38,7 +44,12 @@ export function EntityNode({ id, data }: NodeProps) {
   }, [pickerOpen]);
 
   return (
-    <div className="relative">
+    <div
+      className={cn(
+        "relative transition-opacity duration-150",
+        d.matched === false && "opacity-25",
+      )}
+    >
       <div
         role={d.onOpen ? "button" : undefined}
         tabIndex={d.onOpen ? 0 : undefined}
@@ -46,7 +57,11 @@ export function EntityNode({ id, data }: NodeProps) {
         onKeyDown={(e) => {
           if (d.onOpen && (e.key === "Enter" || e.key === " ")) d.onOpen(id);
         }}
-        className={d.onOpen ? "cursor-pointer outline-none" : "outline-none"}
+        className={cn(
+          d.onOpen ? "cursor-pointer outline-none" : "outline-none",
+          d.matched === true &&
+            "rounded-xl ring-2 ring-[#c9ff3f] ring-offset-2 ring-offset-[#050506]",
+        )}
       >
         <Handle type="target" position={Position.Left} />
         {d.body}

@@ -6,6 +6,8 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  getNodesBounds,
+  getViewportForBounds,
   MarkerType,
   MiniMap,
   Panel,
@@ -17,7 +19,11 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
+import { toPng } from "html-to-image";
+import { Download, Printer, Search, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { DeletableEdge } from "@/components/canvas/deletable-edge";
 import { EntityNode } from "@/components/canvas/entity-node";
@@ -39,6 +45,8 @@ export interface CanvasEntityNode {
   renamable?: boolean;
   /** presente (true/false) = o nó ganha o atalho de colapsar/expandir seus filhos; o valor é o estado atual. */
   collapsed?: boolean;
+  /** texto plano pra busca do canvas (título, cliente, responsável…); sem isso o nó nunca é filtrado. */
+  searchText?: string;
 }
 
 export interface DerivedEdge {
@@ -119,6 +127,54 @@ export function EntityCanvas({
   const onCollapseRef = useRef(onToggleCollapse);
   onCollapseRef.current = onToggleCollapse;
   const collapseStable = useRef((id: string) => onCollapseRef.current?.(id)).current;
+
+  // instância do react-flow — usada só pra fitView/exportar (nada de re-render por causa dela).
+  const rfInstance = useRef<ReactFlowInstance | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+
+  const searchIndex = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of entityNodes) {
+      if (n.searchText) m.set(n.id, n.searchText.toLowerCase());
+    }
+    return m;
+  }, [entityNodes]);
+
+  const matchedIds = useMemo(() => {
+    if (!query) return null;
+    const s = new Set<string>();
+    for (const [id, text] of searchIndex) if (text.includes(query)) s.add(id);
+    return s;
+  }, [query, searchIndex]);
+
+  // aplica o resultado da busca nos nós já montados, sem precisar reconstruir tudo.
+  useEffect(() => {
+    setRfNodes((nds) =>
+      nds.map((n) => {
+        const matched = matchedIds ? matchedIds.has(n.id) : undefined;
+        if (n.data.matched === matched) return n;
+        return { ...n, data: { ...n.data, matched } };
+      }),
+    );
+  }, [matchedIds, setRfNodes]);
+
+  // recentra a view nos resultados quando a busca muda (debounce leve pra não brigar com a digitação).
+  useEffect(() => {
+    if (!matchedIds || matchedIds.size === 0) return;
+    const t = setTimeout(() => {
+      rfInstance.current?.fitView({
+        nodes: [...matchedIds].map((id) => ({ id })),
+        padding: 0.3,
+        duration: 300,
+        maxZoom: 1.2,
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [matchedIds]);
 
   const handleColorChange = useCallback(
     (entityId: string, color: string | null) => {
@@ -275,8 +331,87 @@ export function EntityCanvas({
     [rfEdges, addEdge, setRfEdges, handleDeleteEdge, onBeforeConnect],
   );
 
+  /** renderiza a árvore inteira (não só o que está visível na tela) num PNG, pra exportar ou imprimir. */
+  const captureImage = useCallback(async () => {
+    const viewportEl = wrapperRef.current?.querySelector<HTMLElement>(
+      ".react-flow__viewport",
+    );
+    if (!viewportEl || rfNodes.length === 0) return null;
+
+    const bounds = getNodesBounds(rfNodes);
+    const padding = 48;
+    const imageWidth = Math.min(Math.max(Math.round(bounds.width + padding * 2), 480), 8000);
+    const imageHeight = Math.min(Math.max(Math.round(bounds.height + padding * 2), 320), 8000);
+    const viewport = getViewportForBounds(bounds, imageWidth, imageHeight, 0.1, 2, padding);
+
+    const prev = {
+      transform: viewportEl.style.transform,
+      width: viewportEl.style.width,
+      height: viewportEl.style.height,
+    };
+    viewportEl.style.width = `${imageWidth}px`;
+    viewportEl.style.height = `${imageHeight}px`;
+    viewportEl.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+
+    try {
+      return await toPng(viewportEl, {
+        backgroundColor: "#050506",
+        width: imageWidth,
+        height: imageHeight,
+        pixelRatio: 2,
+      });
+    } finally {
+      viewportEl.style.transform = prev.transform;
+      viewportEl.style.width = prev.width;
+      viewportEl.style.height = prev.height;
+    }
+  }, [rfNodes]);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const dataUrl = await captureImage();
+      if (!dataUrl) {
+        toast.error("Nada pra exportar ainda.");
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${board}-canvas.png`;
+      a.click();
+    } catch {
+      toast.error("Não foi possível exportar a imagem.");
+    } finally {
+      setExporting(false);
+    }
+  }, [captureImage, board]);
+
+  const handlePrint = useCallback(async () => {
+    setExporting(true);
+    try {
+      const dataUrl = await captureImage();
+      if (!dataUrl) {
+        toast.error("Nada pra imprimir ainda.");
+        return;
+      }
+      const win = window.open("", "_blank");
+      if (!win) {
+        toast.error("O navegador bloqueou a janela de impressão.");
+        return;
+      }
+      win.document.write(
+        `<title>${board} — canvas</title><style>html,body{margin:0}img{display:block;max-width:100%}</style><img src="${dataUrl}" onload="window.print()" />`,
+      );
+      win.document.close();
+    } catch {
+      toast.error("Não foi possível preparar a impressão.");
+    } finally {
+      setExporting(false);
+    }
+  }, [captureImage, board]);
+
   return (
-    <div className="emerge-flow h-full w-full">
+    <div ref={wrapperRef} className="emerge-flow h-full w-full">
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -285,6 +420,9 @@ export function EntityCanvas({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onInit={(instance) => {
+          rfInstance.current = instance;
+        }}
         deleteKeyCode={canManage ? ["Backspace", "Delete"] : []}
         nodesDraggable={canManage}
         nodesConnectable={canManage}
@@ -318,6 +456,54 @@ export function EntityCanvas({
             removê-la. As linhas tracejadas são automáticas.
           </Panel>
         )}
+        <Panel
+          position="top-center"
+          className="!m-3 flex items-center gap-1.5"
+        >
+          <div className="flex h-8 w-56 items-center gap-1.5 rounded-md border border-white/10 bg-[#0f1112]/90 px-2.5">
+            <Search className="size-3.5 shrink-0 text-[#8b918f]" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar no canvas…"
+              className="w-full bg-transparent text-[12px] text-[#eef1f0] outline-none placeholder:text-[#8b918f]"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                title="Limpar busca"
+                className="shrink-0 text-[#8b918f] hover:text-[#eef1f0]"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          {query && (
+            <span className="rounded-md border border-white/10 bg-[#0f1112]/90 px-2 py-1.5 text-[11px] text-[#8b918f]">
+              {matchedIds?.size ?? 0}{" "}
+              {matchedIds?.size === 1 ? "resultado" : "resultados"}
+            </span>
+          )}
+          <button
+            type="button"
+            title="Exportar como PNG"
+            disabled={exporting}
+            onClick={handleExport}
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#0f1112]/90 text-[#8b918f] transition-colors hover:text-[#eef1f0] disabled:opacity-40"
+          >
+            <Download className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Imprimir a árvore"
+            disabled={exporting}
+            onClick={handlePrint}
+            className="flex size-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#0f1112]/90 text-[#8b918f] transition-colors hover:text-[#eef1f0] disabled:opacity-40"
+          >
+            <Printer className="size-3.5" />
+          </button>
+        </Panel>
       </ReactFlow>
     </div>
   );

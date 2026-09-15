@@ -79,6 +79,15 @@ export function PipelineCanvas({
       return {
         id: String(lead.id),
         renamable: true,
+        searchText: [
+          lead.empresa,
+          lead.contato,
+          lead.responsavel,
+          lead.criado_por,
+          statusCol ? colLabel(statusCol.name) : lead.status,
+        ]
+          .filter(Boolean)
+          .join(" "),
         body: (
           <div className="w-[224px] rounded-xl border border-white/10 bg-[#141719] px-3 py-2.5">
             <div className="flex items-center gap-2">

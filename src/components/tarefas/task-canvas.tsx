@@ -3,7 +3,18 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dagre from "@dagrejs/dagre";
-import { Bot, Building2, ChevronDown, ChevronRight, Eye, EyeOff, Plus, User } from "lucide-react";
+import {
+  Bot,
+  Building2,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Flag,
+  Plus,
+  User,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { assignTaskToUser } from "@/app/(app)/tarefas/actions";
@@ -13,14 +24,17 @@ import type { TaskRow } from "@/components/tarefas/tasks-board";
 import {
   colDot,
   colLabel,
+  PRIORITY_META,
   type StatusCol,
 } from "@/app/(app)/tarefas/task-constants";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
+import { brtParts } from "@/lib/calendar";
 import { formatDate } from "@/lib/utils";
 
 const PERSON_PREFIX = "person:";
 const AGENT_PREFIX = "agent:";
 const CLIENT_PREFIX = "client:";
+const GROUP_PREFIX = "group:";
 const MORE_PREFIX = "more:";
 const NONE_PERSON = `${PERSON_PREFIX}none`;
 const NONE_CLIENT = `${CLIENT_PREFIX}none`;
@@ -37,6 +51,93 @@ const SIZE = {
   client: { w: 180, h: 48 },
   more: { w: 224, h: 40 },
 } as const;
+
+type GroupBy = "responsavel" | "prioridade" | "prazo";
+
+const GROUP_BY_OPTIONS: { id: GroupBy; label: string }[] = [
+  { id: "responsavel", label: "Responsável → cliente" },
+  { id: "prioridade", label: "Prioridade" },
+  { id: "prazo", label: "Prazo" },
+];
+
+const PRIORITY_ORDER = ["urgent", "high", "medium", "low"] as const;
+
+type PrazoBucket = "atrasada" | "hoje" | "semana" | "mes" | "futuro" | "sem_prazo";
+
+const PRAZO_ORDER: PrazoBucket[] = [
+  "atrasada",
+  "hoje",
+  "semana",
+  "mes",
+  "futuro",
+  "sem_prazo",
+];
+
+const PRAZO_LABEL: Record<PrazoBucket, string> = {
+  atrasada: "Atrasada",
+  hoje: "Hoje",
+  semana: "Esta semana",
+  mes: "Este mês",
+  futuro: "Futuro",
+  sem_prazo: "Sem prazo",
+};
+
+/** Mesmos limites usados nos filtros de período do board (tasks-board.tsx). */
+function prazoBucketOf(
+  dueDate: string | null,
+  todayIso: string,
+  weekEnd: string,
+  monthPrefix: string,
+): PrazoBucket {
+  if (!dueDate) return "sem_prazo";
+  const day = brtParts(dueDate).day;
+  if (day < todayIso) return "atrasada";
+  if (day === todayIso) return "hoje";
+  if (day <= weekEnd) return "semana";
+  if (day.startsWith(monthPrefix)) return "mes";
+  return "futuro";
+}
+
+/** Corpo do card de tarefa — igual nos dois modos de agrupamento. */
+function taskCardBody(
+  task: TaskRow,
+  statusCol: StatusCol | undefined,
+) {
+  return (
+    <div className="w-[224px] rounded-xl border border-white/10 bg-[#141719] px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <span
+          className="size-1.5 shrink-0 rounded-full"
+          style={{
+            backgroundColor: statusCol ? colDot(statusCol.color) : "var(--ink-muted)",
+          }}
+        />
+        <span className="truncate text-[13px] font-semibold text-[#eef1f0]">
+          {task.title}
+        </span>
+      </div>
+      <div className="mt-1 truncate text-[11px] text-[#8b918f]">
+        {statusCol ? colLabel(statusCol.name) : task.status}
+        {task.clientName ? ` · ${task.clientName}` : ""}
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-1.5 text-[11px]">
+        {task.agentName ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#45f0d1]/12 px-1.5 py-0.5 text-[#45f0d1]">
+            <Bot className="size-3" />
+            {task.agentName}
+          </span>
+        ) : (
+          <span className="text-[#8b918f]">
+            {task.assigneeNames[0] ?? "sem responsável"}
+          </span>
+        )}
+        {task.dueDate && (
+          <span className="text-[#8b918f]">{formatDate(task.dueDate)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Layout em árvore: responsável → cliente → tarefa (dagre calcula os rankos pela topologia). */
 function dagreLayout(
@@ -90,6 +191,7 @@ export function TaskCanvas({
 
   const [showOrphans, setShowOrphans] = useState(false);
   const [hideDone, setHideDone] = useState(true);
+  const [groupBy, setGroupBy] = useState<GroupBy>("responsavel");
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
   const [collapsedClients, setCollapsedClients] = useState<Set<string>>(new Set());
 
@@ -107,14 +209,149 @@ export function TaskCanvas({
   );
 
   const { nodes, fallbackLayout, derivedEdges, orphanCount } = useMemo(() => {
+    const baseTasks = hideDone ? tasks.filter((t) => !DONE_STATUSES.has(t.status)) : tasks;
+
+    // "Prioridade"/"Prazo" são agrupamentos de um nível só (grupo → tarefa),
+    // sem a camada de responsável/cliente do modo padrão.
+    if (groupBy !== "responsavel") {
+      const derivedEdges: DerivedEdge[] = [];
+      const todayIso = brtParts(new Date().toISOString()).day;
+      const weekEnd = (() => {
+        const [y, m, d] = todayIso.split("-").map(Number);
+        return brtParts(new Date(y, m - 1, d + 7).toISOString()).day;
+      })();
+      const monthPrefix = todayIso.slice(0, 7);
+
+      const groupKeyOf = (task: TaskRow): { key: string; label: string } => {
+        if (groupBy === "prioridade") {
+          const meta = PRIORITY_META[task.priority];
+          return {
+            key: task.priority || "sem_prioridade",
+            label: meta?.label ?? task.priority ?? "Sem prioridade",
+          };
+        }
+        const bucket = prazoBucketOf(task.dueDate, todayIso, weekEnd, monthPrefix);
+        return { key: bucket, label: PRAZO_LABEL[bucket] };
+      };
+
+      const branches = new Map<string, TaskRow[]>();
+      const labelOf = new Map<string, string>();
+      for (const task of baseTasks) {
+        const { key, label } = groupKeyOf(task);
+        const groupRef = `${GROUP_PREFIX}${key}`;
+        labelOf.set(groupRef, label);
+        const list = branches.get(groupRef);
+        if (list) list.push(task);
+        else branches.set(groupRef, [task]);
+      }
+
+      const order = groupBy === "prioridade" ? PRIORITY_ORDER : PRAZO_ORDER;
+      const orderIndex = new Map(order.map((k, i) => [`${GROUP_PREFIX}${k}`, i]));
+      const sortedBranches = [...branches.entries()].sort(
+        (a, b) =>
+          (orderIndex.get(a[0]) ?? order.length) - (orderIndex.get(b[0]) ?? order.length),
+      );
+
+      const visibleTasks: TaskRow[] = [];
+      const moreNodes: { id: string; groupRef: string; hiddenCount: number }[] = [];
+      const collapsedCounts = new Map<string, number>();
+      for (const [groupRef, branchTasks] of sortedBranches) {
+        if (collapsedClients.has(groupRef)) {
+          collapsedCounts.set(groupRef, branchTasks.length);
+          continue;
+        }
+        if (expandedBranches.has(groupRef) || branchTasks.length <= TASKS_PER_BRANCH) {
+          visibleTasks.push(...branchTasks);
+        } else {
+          visibleTasks.push(...branchTasks.slice(0, TASKS_PER_BRANCH));
+          moreNodes.push({
+            id: `${MORE_PREFIX}${groupRef}`,
+            groupRef,
+            hiddenCount: branchTasks.length - TASKS_PER_BRANCH,
+          });
+        }
+      }
+
+      const taskNodes = visibleTasks.map((task) => {
+        const statusCol = cols.get(task.status);
+        const { key } = groupKeyOf(task);
+        const groupRef = `${GROUP_PREFIX}${key}`;
+        derivedEdges.push({ id: `gt:${groupRef}:${task.id}`, source: groupRef, target: task.id });
+        return {
+          id: task.id,
+          renamable: true,
+          searchText: [
+            task.title,
+            task.clientName,
+            task.agentName,
+            ...task.assigneeNames,
+            statusCol ? colLabel(statusCol.name) : task.status,
+          ]
+            .filter(Boolean)
+            .join(" "),
+          body: taskCardBody(task, statusCol),
+        };
+      });
+
+      const moreTaskNodes = moreNodes.map(({ id, groupRef, hiddenCount }) => {
+        derivedEdges.push({ id: `gt:${groupRef}:${id}`, source: groupRef, target: id });
+        return {
+          id,
+          body: (
+            <button
+              type="button"
+              className="flex w-[224px] items-center justify-center rounded-xl border border-dashed border-white/15 bg-[#141719]/60 px-3 py-2.5 text-[12px] font-medium text-[#8b918f] hover:text-[#eef1f0]"
+            >
+              +{hiddenCount} mais
+            </button>
+          ),
+        };
+      });
+
+      const GroupIcon = groupBy === "prioridade" ? Flag : CalendarClock;
+      const groupNodes = sortedBranches.map(([groupRef]) => {
+        const label = labelOf.get(groupRef) ?? groupRef;
+        const collapsed = collapsedClients.has(groupRef);
+        const hiddenN = collapsedCounts.get(groupRef) ?? 0;
+        return {
+          id: groupRef,
+          collapsed,
+          searchText: label,
+          body: (
+            <div className="flex w-[180px] items-center gap-2 rounded-lg border border-white/10 bg-[#141719] px-3 py-2.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
+                <GroupIcon className="size-3.5 text-[#eef1f0]" />
+              </span>
+              <span className="truncate text-[12px] font-medium text-[#eef1f0]">
+                {label}
+              </span>
+              {collapsed && (
+                <span className="ml-auto shrink-0 rounded-full bg-white/10 px-1.5 text-[10px] text-[#8b918f]">
+                  {hiddenN}
+                </span>
+              )}
+            </div>
+          ),
+        };
+      });
+
+      const allNodes = [...groupNodes, ...taskNodes, ...moreTaskNodes];
+      const layoutItems: { id: string; kind: keyof typeof SIZE }[] = [
+        ...groupNodes.map((n) => ({ id: n.id, kind: "client" as const })),
+        ...taskNodes.map((n) => ({ id: n.id, kind: "task" as const })),
+        ...moreTaskNodes.map((n) => ({ id: n.id, kind: "more" as const })),
+      ];
+      const fallbackLayout = dagreLayout(layoutItems, derivedEdges);
+
+      return { nodes: allNodes, fallbackLayout, derivedEdges, orphanCount: 0 };
+    }
+
     const derivedEdges: DerivedEdge[] = [];
     const usedPersonIds = new Set<string>();
     const usedAgentNames = new Set<string>();
     const clientOf = new Map<string, string>(); // client node id -> label
     let needsNonePerson = false;
     let needsNoneClient = false;
-
-    const baseTasks = hideDone ? tasks.filter((t) => !DONE_STATUSES.has(t.status)) : tasks;
 
     // Agrupa por cliente (a "coluna" visual do dagre) pra poder limitar quantas
     // tarefas cada branch mostra de cara, com um nó "+N mais" pra expandir.
@@ -180,40 +417,16 @@ export function TaskCanvas({
       return {
         id: task.id,
         renamable: true,
-        body: (
-          <div className="w-[224px] rounded-xl border border-white/10 bg-[#141719] px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <span
-                className="size-1.5 shrink-0 rounded-full"
-                style={{
-                  backgroundColor: statusCol ? colDot(statusCol.color) : "var(--ink-muted)",
-                }}
-              />
-              <span className="truncate text-[13px] font-semibold text-[#eef1f0]">
-                {task.title}
-              </span>
-            </div>
-            <div className="mt-1 truncate text-[11px] text-[#8b918f]">
-              {statusCol ? colLabel(statusCol.name) : task.status}
-              {task.clientName ? ` · ${task.clientName}` : ""}
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-1.5 text-[11px]">
-              {task.agentName ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#45f0d1]/12 px-1.5 py-0.5 text-[#45f0d1]">
-                  <Bot className="size-3" />
-                  {task.agentName}
-                </span>
-              ) : (
-                <span className="text-[#8b918f]">
-                  {task.assigneeNames[0] ?? "sem responsável"}
-                </span>
-              )}
-              {task.dueDate && (
-                <span className="text-[#8b918f]">{formatDate(task.dueDate)}</span>
-              )}
-            </div>
-          </div>
-        ),
+        searchText: [
+          task.title,
+          task.clientName,
+          task.agentName,
+          ...task.assigneeNames,
+          statusCol ? colLabel(statusCol.name) : task.status,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        body: taskCardBody(task, statusCol),
       };
     });
 
@@ -241,6 +454,7 @@ export function TaskCanvas({
         const active = usedPersonIds.has(p.id);
         return {
           id,
+          searchText: p.name,
           body: (
             <div
               className={
@@ -273,6 +487,7 @@ export function TaskCanvas({
     if (needsNonePerson) {
       personNodes.push({
         id: NONE_PERSON,
+        searchText: "Sem responsável",
         body: (
           <div className="flex w-[180px] items-center gap-2 rounded-full border border-dashed border-white/15 bg-[#141719]/60 px-3 py-2">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/10">
@@ -286,6 +501,7 @@ export function TaskCanvas({
 
     const agentNodes = [...usedAgentNames].map((name) => ({
       id: `${AGENT_PREFIX}${name}`,
+      searchText: name,
       body: (
         <div className="flex w-[180px] items-center gap-2 rounded-full border border-[#45f0d1]/40 bg-[#45f0d1]/10 px-3 py-2">
           <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/10">
@@ -302,6 +518,7 @@ export function TaskCanvas({
       return {
         id,
         collapsed,
+        searchText: label,
         body: (
           <div className="flex w-[180px] items-center gap-2 rounded-lg border border-white/10 bg-[#141719] px-3 py-2.5">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
@@ -323,6 +540,7 @@ export function TaskCanvas({
       clientNodes.push({
         id: NONE_CLIENT,
         collapsed,
+        searchText: "Sem cliente",
         body: (
           <div className="flex w-[180px] items-center gap-2 rounded-lg border border-dashed border-white/15 bg-[#141719]/60 px-3 py-2.5">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/10">
@@ -350,7 +568,16 @@ export function TaskCanvas({
     const fallbackLayout = dagreLayout(layoutItems, derivedEdges);
 
     return { nodes: allNodes, fallbackLayout, derivedEdges, orphanCount };
-  }, [tasks, cols, people, showOrphans, hideDone, expandedBranches, collapsedClients]);
+  }, [
+    tasks,
+    cols,
+    people,
+    showOrphans,
+    hideDone,
+    groupBy,
+    expandedBranches,
+    collapsedClients,
+  ]);
 
   const handleConnect = async (source: string, target: string) => {
     // só task ↔ pessoa vira atribuição de verdade; o resto continua anotação livre.
@@ -360,7 +587,10 @@ export function TaskCanvas({
         ? [target, source]
         : [null, null];
     const isPseudo = (id: string) =>
-      id.startsWith(PERSON_PREFIX) || id.startsWith(AGENT_PREFIX) || id.startsWith(CLIENT_PREFIX);
+      id.startsWith(PERSON_PREFIX) ||
+      id.startsWith(AGENT_PREFIX) ||
+      id.startsWith(CLIENT_PREFIX) ||
+      id.startsWith(GROUP_PREFIX);
     if (!taskId || !personRef || isPseudo(taskId) || personRef === NONE_PERSON) return true;
     const userId = personRef.slice(PERSON_PREFIX.length);
     try {
@@ -378,6 +608,7 @@ export function TaskCanvas({
     !id.startsWith(PERSON_PREFIX) &&
     !id.startsWith(AGENT_PREFIX) &&
     !id.startsWith(CLIENT_PREFIX) &&
+    !id.startsWith(GROUP_PREFIX) &&
     !id.startsWith(MORE_PREFIX);
 
   const handleOpenNode = (id: string) => {
@@ -415,7 +646,19 @@ export function TaskCanvas({
         onToggleCollapse={toggleCollapsed}
         onBeforeConnect={handleConnect}
       />
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2">
+      <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2">
+        <select
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+          title="Agrupar por"
+          className="border-input bg-background h-8 rounded-md border px-2 text-xs outline-none"
+        >
+          {GROUP_BY_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              Agrupar: {o.label}
+            </option>
+          ))}
+        </select>
         {doneCount > 0 && (
           <Button
             size="sm"

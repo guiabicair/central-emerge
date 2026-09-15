@@ -395,6 +395,7 @@ export type Database = {
       app_canvas_nodes: {
         Row: {
           board: string
+          color: string | null
           entity_id: string
           id: string
           owner: string
@@ -405,6 +406,7 @@ export type Database = {
         }
         Insert: {
           board: string
+          color?: string | null
           entity_id: string
           id?: string
           owner?: string
@@ -415,6 +417,7 @@ export type Database = {
         }
         Update: {
           board?: string
+          color?: string | null
           entity_id?: string
           id?: string
           owner?: string
@@ -2063,6 +2066,63 @@ export type Database = {
           },
         ]
       }
+      ops_alerts: {
+        Row: {
+          created_at: string
+          dispatched_at: string | null
+          id: string
+          kind: string
+          message: string | null
+          ops_activity_id: string | null
+          resolved: boolean
+          resolved_at: string | null
+          source_agent_name: string | null
+          task_id: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          dispatched_at?: string | null
+          id?: string
+          kind: string
+          message?: string | null
+          ops_activity_id?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          source_agent_name?: string | null
+          task_id?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          dispatched_at?: string | null
+          id?: string
+          kind?: string
+          message?: string | null
+          ops_activity_id?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          source_agent_name?: string | null
+          task_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ops_alerts_ops_activity_id_fkey"
+            columns: ["ops_activity_id"]
+            isOneToOne: false
+            referencedRelation: "ops_agent_activity"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ops_alerts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ops_projects: {
         Row: {
           created_at: string
@@ -2629,6 +2689,36 @@ export type Database = {
           project_value?: number | null
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -3362,6 +3452,41 @@ export type Database = {
         }
         Relationships: []
       }
+      vendas_leads_status_history: {
+        Row: {
+          changed_at: string
+          id: number
+          lead_id: number
+          status_anterior: string | null
+          status_novo: string
+          unidade: string
+        }
+        Insert: {
+          changed_at?: string
+          id?: never
+          lead_id: number
+          status_anterior?: string | null
+          status_novo: string
+          unidade: string
+        }
+        Update: {
+          changed_at?: string
+          id?: never
+          lead_id?: number
+          status_anterior?: string | null
+          status_novo?: string
+          unidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendas_leads_status_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "vendas_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendas_metas: {
         Row: {
           atualizado_em: string
@@ -3530,9 +3655,53 @@ export type Database = {
         }
         Returns: string
       }
+      ops_alerts_claim_pending: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          dispatched_at: string | null
+          id: string
+          kind: string
+          message: string | null
+          ops_activity_id: string | null
+          resolved: boolean
+          resolved_at: string | null
+          source_agent_name: string | null
+          task_id: string | null
+          title: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ops_alerts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       ops_ensure_project: {
         Args: { p_name?: string; p_slug: string }
         Returns: string
+      }
+      ops_push_subscription_remove: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
+      ops_push_subscriptions_list: {
+        Args: never
+        Returns: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_agent: string | null
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "push_subscriptions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       ops_report_activity: {
         Args: {
