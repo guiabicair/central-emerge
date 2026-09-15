@@ -93,6 +93,7 @@ const FRENTE_LABEL: Record<string, string> = {
   emerge_financeiro: "Emerge Financeiro",
   emerge_propostas_dev: "Emerge Propostas (dev)",
   eventos: "Eventos",
+  automacao: "Automação",
   outro: "Outro",
 };
 
