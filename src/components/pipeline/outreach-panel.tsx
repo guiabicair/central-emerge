@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Mail, Pencil, RotateCcw, X } from "lucide-react";
+import { Check, CheckCheck, Mail, Pencil, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  approveAllOutreachDrafts,
   approveOutreachMessage,
   rejectOutreachMessage,
   reopenOutreachMessage,
@@ -208,15 +209,75 @@ function Card({ row }: { row: OutreachRow }) {
   );
 }
 
+function ApproveAllButton({ count }: { count: number }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, start] = useTransition();
+
+  function run() {
+    start(async () => {
+      try {
+        const n = await approveAllOutreachDrafts();
+        toast.success(
+          n > 0
+            ? `${n} rascunho${n === 1 ? "" : "s"} aprovado${n === 1 ? "" : "s"} — vão na próxima rodada de envio.`
+            : "Nenhum rascunho pendente para aprovar.",
+        );
+        setConfirming(false);
+      } catch (e) {
+        toast.error(actionError(e, "Falhou ao aprovar em lote"));
+      }
+    });
+  }
+
+  return (
+    <>
+      <Button
+        size="xs"
+        variant="outline"
+        disabled={count === 0}
+        onClick={() => setConfirming(true)}
+      >
+        <CheckCheck className="size-3" />
+        Aprovar todos{count > 0 ? ` (${count})` : ""}
+      </Button>
+
+      {confirming && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/40 p-4">
+          <div className="border-line bg-surface w-full max-w-sm rounded-xl border p-5">
+            <h3 className="text-sm font-semibold">
+              Aprovar {count} rascunho{count === 1 ? "" : "s"} de outreach?
+            </h3>
+            <p className="text-ink-muted mt-1 text-sm">
+              Todos os rascunhos pendentes (Labs e Tech) entram na fila de
+              envio e saem via Gmail na próxima rodada automática. Não dá pra
+              editar depois de aprovado — só rejeitar.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+                Cancelar
+              </Button>
+              <Button size="sm" disabled={pending} onClick={run}>
+                <CheckCheck className="size-3.5" />
+                Aprovar todos
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function OutreachPanel({ rows }: { rows: OutreachRow[] }) {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const visible = rows.filter((r) =>
     filter === "pending" ? r.status === "draft" || r.status === "approved" : true,
   );
+  const draftCount = rows.filter((r) => r.status === "draft").length;
 
   return (
     <div className="flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm">
           <Mail className="text-ink-muted size-4" />
           <span className="font-medium">Outreach de leads</span>
@@ -226,7 +287,9 @@ export function OutreachPanel({ rows }: { rows: OutreachRow[] }) {
             próxima rodada automática.
           </span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <ApproveAllButton count={draftCount} />
+          <div className="mx-1 h-4 w-px bg-line" />
           <Button
             size="xs"
             variant={filter === "pending" ? "default" : "outline"}

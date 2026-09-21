@@ -51,6 +51,26 @@ export async function approveOutreachMessage(id: string) {
   revalidatePath("/pipeline");
 }
 
+/** Aprova todos os rascunhos pendentes de uma vez — mesmo gate humano, em lote. */
+export async function approveAllOutreachDrafts() {
+  await guard();
+  const user = await getUser();
+  const db = await createUntypedClient();
+  const { data, error } = await db
+    .from("outreach_messages")
+    .update({
+      status: "approved",
+      approved_by: user?.id ?? null,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("status", "draft")
+    .select("id");
+  if (error) throw new Error(error.message);
+  revalidatePath("/pipeline");
+  return data?.length ?? 0;
+}
+
 export async function rejectOutreachMessage(id: string) {
   await guard();
   const db = await createUntypedClient();
