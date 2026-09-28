@@ -84,6 +84,83 @@ export interface LeadRow {
   criado_em: string;
 }
 
+export interface LeadReplyRow {
+  id: string;
+  leadId: number;
+  classificacao: "positivo" | "negativo" | "neutro_com_prazo" | "auto_reply";
+  resumo: string;
+  fromEmail: string | null;
+  receivedAt: string;
+  prazoData: string | null;
+}
+
+const REPLY_BADGE: Record<
+  LeadReplyRow["classificacao"],
+  { label: string; cls: string }
+> = {
+  positivo: { label: "Positivo", cls: "bg-emerald-500/15 text-emerald-400" },
+  negativo: { label: "Negativo", cls: "bg-red-500/15 text-red-400" },
+  neutro_com_prazo: { label: "Com prazo", cls: "bg-amber-500/15 text-amber-400" },
+  auto_reply: { label: "Auto-resposta", cls: "bg-slate-500/15 text-slate-400" },
+};
+
+function RetornosSection({ replies }: { replies: LeadReplyRow[] }) {
+  if (replies.length === 0) {
+    return (
+      <div>
+        <span className="text-ink-muted text-[11px] font-semibold uppercase">
+          Retornos
+        </span>
+        <p className="text-ink-muted mt-1 text-xs">
+          Nenhuma resposta registrada ainda — a rotina "Resumo de retornos" checa a
+          cada 2 dias.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <span className="text-ink-muted text-[11px] font-semibold uppercase">
+        Retornos ({replies.length})
+      </span>
+      <div className="mt-1.5 space-y-2">
+        {replies.map((r) => {
+          const badge = REPLY_BADGE[r.classificacao];
+          return (
+            <div
+              key={r.id}
+              className="border-line rounded-md border p-2.5 text-xs"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${badge.cls}`}
+                >
+                  {badge.label}
+                </span>
+                <span className="text-ink-muted">
+                  {new Date(r.receivedAt).toLocaleDateString("pt-BR")}
+                </span>
+              </div>
+              <p className="text-ink mt-1.5">{r.resumo}</p>
+              {r.prazoData && (
+                <p className="text-ink-muted mt-1">
+                  Retomar em:{" "}
+                  <span className="text-ink font-medium">
+                    {new Date(r.prazoData).toLocaleDateString("pt-BR")}
+                  </span>
+                </p>
+              )}
+              {r.fromEmail && (
+                <p className="text-ink-muted mt-1">{r.fromEmail}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const PROPOSTA_BASE = "https://emerge-propostas.vercel.app";
 const NO_RESP = "Sem responsável";
 
@@ -138,10 +215,12 @@ const inputCls =
 function LeadForm({
   initial,
   statuses,
+  replies,
   onClose,
 }: {
   initial: LeadInput;
   statuses: StatusCol[];
+  replies: LeadReplyRow[];
   onClose: () => void;
 }) {
   const [form, setForm] = useState<LeadInput>(initial);
@@ -316,6 +395,7 @@ function LeadForm({
             className="border-line-strong focus:border-data mt-1 w-full rounded-md border bg-transparent px-2.5 py-2 text-sm outline-none"
           />
         </label>
+        {initial.id != null && <RetornosSection replies={replies} />}
       </div>
 
       <div className="border-line flex justify-end gap-2 border-t p-4">
@@ -488,6 +568,7 @@ export function PipelineBoard({
   loadError,
   canvas,
   outreach,
+  replies,
 }: {
   leads: LeadRow[];
   statuses: StatusCol[];
@@ -495,6 +576,7 @@ export function PipelineBoard({
   loadError: string | null;
   canvas: CanvasSnapshot;
   outreach: OutreachRow[];
+  replies: LeadReplyRow[];
 }) {
   const cols = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
@@ -768,7 +850,16 @@ export function PipelineBoard({
       <Sheet open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <SheetContent side="right" className="w-full p-0 sm:max-w-[460px]">
           {editing && (
-            <LeadForm initial={editing} statuses={cols} onClose={() => setEditing(null)} />
+            <LeadForm
+              initial={editing}
+              statuses={cols}
+              replies={
+                editing.id != null
+                  ? replies.filter((r) => r.leadId === editing.id)
+                  : []
+              }
+              onClose={() => setEditing(null)}
+            />
           )}
         </SheetContent>
       </Sheet>

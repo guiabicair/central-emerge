@@ -1,5 +1,9 @@
 import { Topbar } from "@/components/layout/topbar";
-import { PipelineBoard, type LeadRow } from "@/components/pipeline/pipeline-board";
+import {
+  PipelineBoard,
+  type LeadRow,
+  type LeadReplyRow,
+} from "@/components/pipeline/pipeline-board";
 import type { OutreachRow } from "@/components/pipeline/outreach-panel";
 import { can } from "@/lib/auth/roles";
 import { getCanvasSnapshot } from "@/lib/canvas/queries";
@@ -19,25 +23,40 @@ interface OutreachDb {
   sent_at: string | null;
 }
 
+interface LeadReplyDb {
+  id: string;
+  lead_id: number;
+  classificacao: LeadReplyRow["classificacao"];
+  resumo: string;
+  from_email: string | null;
+  received_at: string;
+  prazo_data: string | null;
+}
+
 export default async function PipelinePage() {
   const supabase = await createClient();
   const db = await createUntypedClient();
 
-  const [{ data, error }, statusesRes, outreachRes, canManage, canvas] = await Promise.all([
-    supabase
-      .from("vendas_leads")
-      .select(
-        "id, empresa, unidade, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
-      )
-      .order("atualizado_em", { ascending: false }),
-    db.from("lead_statuses").select("id, name, color, position").order("position"),
-    db
-      .from("outreach_messages")
-      .select("id, lead_id, to_email, subject, body, status, error, created_at, sent_at")
-      .order("created_at", { ascending: false }),
-    can("pipeline.manage"),
-    getCanvasSnapshot("pipeline"),
-  ]);
+  const [{ data, error }, statusesRes, outreachRes, repliesRes, canManage, canvas] =
+    await Promise.all([
+      supabase
+        .from("vendas_leads")
+        .select(
+          "id, empresa, unidade, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
+        )
+        .order("atualizado_em", { ascending: false }),
+      db.from("lead_statuses").select("id, name, color, position").order("position"),
+      db
+        .from("outreach_messages")
+        .select("id, lead_id, to_email, subject, body, status, error, created_at, sent_at")
+        .order("created_at", { ascending: false }),
+      db
+        .from("lead_replies")
+        .select("id, lead_id, classificacao, resumo, from_email, received_at, prazo_data")
+        .order("received_at", { ascending: false }),
+      can("pipeline.manage"),
+      getCanvasSnapshot("pipeline"),
+    ]);
 
   const leads = (data ?? []) as LeadRow[];
   const statuses = (statusesRes.data ?? []).map((s) => ({
@@ -63,6 +82,16 @@ export default async function PipelinePage() {
     sentAt: o.sent_at,
   }));
 
+  const replies: LeadReplyRow[] = ((repliesRes.data ?? []) as LeadReplyDb[]).map((r) => ({
+    id: r.id,
+    leadId: r.lead_id,
+    classificacao: r.classificacao,
+    resumo: r.resumo,
+    fromEmail: r.from_email,
+    receivedAt: r.received_at,
+    prazoData: r.prazo_data,
+  }));
+
   return (
     <>
       <Topbar
@@ -80,6 +109,7 @@ export default async function PipelinePage() {
         loadError={error?.message ?? null}
         canvas={canvas}
         outreach={outreach}
+        replies={replies}
       />
     </>
   );
