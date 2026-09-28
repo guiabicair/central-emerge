@@ -54,6 +54,27 @@ function ym(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// PostgREST/Supabase corta cada SELECT em ~1000 linhas por padrão — com
+// vendas_leads e vendas_leads_status_history já passando disso, uma query
+// simples escondia os registros mais antigos. Pagina em blocos até esgotar.
+const PAGE_SIZE = 1000;
+
+async function fetchAll<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<{ data: T[]; error: unknown }> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1);
+    if (error) return { data: all, error };
+    const page = data ?? [];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const periodo = ym(new Date());
@@ -84,12 +105,26 @@ export default async function DashboardPage() {
             .eq("periodo", periodo)
         : Promise.resolve({ data: [], error: null } as const),
       canPipe
-        ? supabase.from("vendas_leads").select("status, valor_estimado, unidade")
+        ? fetchAll<{ status: string; valor_estimado: number | null; unidade: string }>(
+            (from, to) =>
+              supabase
+                .from("vendas_leads")
+                .select("status, valor_estimado, unidade")
+                .range(from, to),
+          )
         : Promise.resolve({ data: [], error: null } as const),
       canPipe
-        ? supabase
-            .from("vendas_leads_status_history")
-            .select("lead_id, unidade, status_novo, changed_at")
+        ? fetchAll<{
+            lead_id: number;
+            unidade: string;
+            status_novo: string;
+            changed_at: string;
+          }>((from, to) =>
+            supabase
+              .from("vendas_leads_status_history")
+              .select("lead_id, unidade, status_novo, changed_at")
+              .range(from, to),
+          )
         : Promise.resolve({ data: [], error: null } as const),
       canTasks
         ? supabase.from("tasks").select("status")

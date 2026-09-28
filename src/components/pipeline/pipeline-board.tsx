@@ -439,10 +439,23 @@ function DeleteDialog({
   );
 }
 
+const OUTREACH_DOT: Record<
+  OutreachRow["status"] | "none",
+  { color: string; label: string }
+> = {
+  none: { color: "#52525b", label: "Sem mensagem gerada ainda" },
+  draft: { color: "#eab308", label: "Rascunho gerado — aguardando aprovação" },
+  approved: { color: "#38bdf8", label: "Aprovada — na fila de envio" },
+  sent: { color: "#22c55e", label: "Enviada" },
+  rejected: { color: "#71717a", label: "Rejeitada" },
+  failed: { color: "#ef4444", label: "Falhou ao enviar" },
+};
+
 function LeadCard({
   lead,
   statuses,
   canManage,
+  outreachStatus,
   onEdit,
   onDelete,
   onMove,
@@ -451,11 +464,13 @@ function LeadCard({
   lead: LeadRow;
   statuses: StatusCol[];
   canManage: boolean;
+  outreachStatus: OutreachRow["status"] | undefined;
   onEdit: () => void;
   onDelete: () => void;
   onMove: (status: string) => void;
   onLinkProposta: () => void;
 }) {
+  const dot = OUTREACH_DOT[outreachStatus ?? "none"];
   return (
     <div
       className="border-line bg-surface rounded-xl border p-3"
@@ -470,6 +485,11 @@ function LeadCard({
           {canManage && (
             <GripVertical className="text-ink-muted mt-0.5 size-3.5 shrink-0 cursor-grab" />
           )}
+          <span
+            title={dot.label}
+            className="mt-1.5 size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: dot.color }}
+          />
           <button
             type="button"
             onClick={canManage ? onEdit : undefined}
@@ -592,6 +612,16 @@ export function PipelineBoard({
     [outreach, unit],
   );
 
+  // outreach já vem ordenado por created_at desc (page.tsx) — a primeira
+  // ocorrência por lead é a mensagem mais recente daquele lead.
+  const outreachStatusByLead = useMemo(() => {
+    const m = new Map<number, OutreachRow["status"]>();
+    for (const o of outreach) {
+      if (!m.has(o.leadId)) m.set(o.leadId, o.status);
+    }
+    return m;
+  }, [outreach]);
+
   const companies = useMemo(
     () => Array.from(new Set(leadsForUnit.map((l) => l.empresa))).sort((a, b) => a.localeCompare(b)),
     [leadsForUnit],
@@ -686,6 +716,7 @@ export function PipelineBoard({
               lead={lead}
               statuses={cols}
               canManage={canManage}
+              outreachStatus={outreachStatusByLead.get(lead.id)}
               onEdit={() => setEditing(toInput(lead, fallbackStatus))}
               onDelete={() => setDeleting(lead)}
               onMove={(status) => doMove(lead, status)}
@@ -757,6 +788,26 @@ export function PipelineBoard({
                 : "gerados pela captação automática + manuais"}
             </span>
           </span>
+          {view === "board" && (
+            <span className="text-ink-muted flex items-center gap-2.5 text-[11px]">
+              {(
+                [
+                  ["none", "sem mensagem"],
+                  ["draft", "gerada"],
+                  ["approved", "aprovada"],
+                  ["sent", "enviada"],
+                ] as const
+              ).map(([key, label]) => (
+                <span key={key} className="flex items-center gap-1">
+                  <span
+                    className="size-1.5 rounded-full"
+                    style={{ backgroundColor: OUTREACH_DOT[key].color }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {!loadError && (
