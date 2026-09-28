@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { DragEvent } from "react";
-import dynamic from "next/dynamic";
 import {
   Code2,
   Columns3,
@@ -14,7 +13,6 @@ import {
   Pencil,
   Plus,
   Trash2,
-  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,19 +51,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CanvasSnapshot } from "@/lib/canvas/types";
 import { actionError, formatCompactCurrency, formatCurrency } from "@/lib/utils";
-
-const PipelineCanvas = dynamic(
-  () =>
-    import("@/components/pipeline/pipeline-canvas").then((m) => m.PipelineCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="text-ink-muted grid h-full place-items-center text-sm">
-        Carregando canvas…
-      </div>
-    ),
-  },
-);
 
 export interface LeadRow {
   id: number;
@@ -587,7 +572,7 @@ export function PipelineBoard({
   const [editing, setEditing] = useState<LeadInput | null>(null);
   const [deleting, setDeleting] = useState<LeadRow | null>(null);
   const [closingDeal, setClosingDeal] = useState<LeadRow | null>(null);
-  const [view, setView] = useState<"board" | "canvas" | "outreach">("board");
+  const [view, setView] = useState<"board" | "outreach">("board");
   const [unit, setUnit] = useState<LeadUnidade>("labs");
   const [manageCols, setManageCols] = useState(false);
   const [leads, setLeads] = useState<LeadRow[]>(leadsProp);
@@ -781,10 +766,6 @@ export function PipelineBoard({
                   <KanbanSquare className="size-4" />
                   Board
                 </TabsTrigger>
-                <TabsTrigger value="canvas">
-                  <Workflow className="size-4" />
-                  Canvas
-                </TabsTrigger>
                 <TabsTrigger value="outreach">
                   <Mail className="size-4" />
                   Outreach
@@ -827,20 +808,6 @@ export function PipelineBoard({
         </div>
       ) : view === "outreach" ? (
         <OutreachPanel rows={outreachForUnit} />
-      ) : view === "canvas" ? (
-        <div className="border-line min-h-0 flex-1 border-t">
-          <PipelineCanvas
-            key={`${unit}::${companyFilter}::${respFilter}`}
-            leads={leadsFiltered}
-            statuses={cols}
-            snapshot={canvas}
-            canManage={canManage}
-            onOpenLead={(id) => {
-              const l = leadsFiltered.find((x) => x.id === id);
-              if (l) setEditing(toInput(l, fallbackStatus));
-            }}
-          />
-        </div>
       ) : (
         <div className="board-scroll flex flex-1 gap-4 overflow-x-auto p-4 md:p-6">
           {cols.map(renderColumn)}
