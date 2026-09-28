@@ -11,6 +11,31 @@ import { createClient, createUntypedClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Pipeline · Central Emerge" };
 
+// PostgREST/Supabase limita cada SELECT a no máx. ~1000 linhas por padrão —
+// com >1000 leads (e outreach_messages crescendo do mesmo jeito), uma query
+// simples corta silenciosamente os mais antigos. Pagina em blocos até
+// esgotar, em vez de confiar num único .select().
+const PAGE_SIZE = 1000;
+
+type SupaPage<T> = PromiseLike<{ data: T[] | null; error: unknown }>;
+
+async function fetchAll<T>(build: (from: number, to: number) => SupaPage<T>): Promise<{
+  data: T[];
+  error: unknown;
+}> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1);
+    if (error) return { data: all, error };
+    const page = (data ?? []) as T[];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
+
 interface OutreachDb {
   id: string;
   lead_id: number;
@@ -37,28 +62,43 @@ export default async function PipelinePage() {
   const supabase = await createClient();
   const db = await createUntypedClient();
 
-  const [{ data, error }, statusesRes, outreachRes, repliesRes, canManage, canvas] =
-    await Promise.all([
+  const [
+    { data, error },
+    statusesRes,
+    { data: outreachData },
+    { data: repliesData },
+    canManage,
+    canvas,
+  ] = await Promise.all([
+    fetchAll<LeadRow>((from, to) =>
       supabase
         .from("vendas_leads")
         .select(
           "id, empresa, unidade, frente, segmento, contato, origem, valor_estimado, responsavel, status, motivo_fit, proposta_slug, criado_por, criado_em",
         )
-        .order("atualizado_em", { ascending: false }),
-      db.from("lead_statuses").select("id, name, color, position").order("position"),
+        .order("atualizado_em", { ascending: false })
+        .range(from, to),
+    ),
+    db.from("lead_statuses").select("id, name, color, position").order("position"),
+    fetchAll<OutreachDb>((from, to) =>
       db
         .from("outreach_messages")
         .select("id, lead_id, to_email, subject, body, status, error, created_at, sent_at")
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    ),
+    fetchAll<LeadReplyDb>((from, to) =>
       db
         .from("lead_replies")
         .select("id, lead_id, classificacao, resumo, from_email, received_at, prazo_data")
-        .order("received_at", { ascending: false }),
-      can("pipeline.manage"),
-      getCanvasSnapshot("pipeline"),
-    ]);
+        .order("received_at", { ascending: false })
+        .range(from, to),
+    ),
+    can("pipeline.manage"),
+    getCanvasSnapshot("pipeline"),
+  ]);
 
-  const leads = (data ?? []) as LeadRow[];
+  const leads = data;
   const statuses = (statusesRes.data ?? []).map((s) => ({
     id: s.id as string,
     name: s.name as string,
@@ -68,7 +108,7 @@ export default async function PipelinePage() {
 
   const empresaByLeadId = new Map(leads.map((l) => [l.id, l.empresa]));
   const unidadeByLeadId = new Map(leads.map((l) => [l.id, l.unidade]));
-  const outreach: OutreachRow[] = ((outreachRes.data ?? []) as OutreachDb[]).map((o) => ({
+  const outreach: OutreachRow[] = (outreachData ?? []).map((o) => ({
     id: o.id,
     leadId: o.lead_id,
     unidade: unidadeByLeadId.get(o.lead_id) ?? "labs",
@@ -82,7 +122,7 @@ export default async function PipelinePage() {
     sentAt: o.sent_at,
   }));
 
-  const replies: LeadReplyRow[] = ((repliesRes.data ?? []) as LeadReplyDb[]).map((r) => ({
+  const replies: LeadReplyRow[] = (repliesData ?? []).map((r) => ({
     id: r.id,
     leadId: r.lead_id,
     classificacao: r.classificacao,
@@ -106,7 +146,7 @@ export default async function PipelinePage() {
         leads={leads}
         statuses={statuses}
         canManage={canManage}
-        loadError={error?.message ?? null}
+        loadError={error ? "Erro ao carregar leads." : null}
         canvas={canvas}
         outreach={outreach}
         replies={replies}
