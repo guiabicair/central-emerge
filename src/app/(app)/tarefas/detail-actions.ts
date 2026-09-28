@@ -37,6 +37,32 @@ export async function deleteComment(id: string) {
   revalidatePath("/tarefas");
 }
 
+/* ------------------------ Anexos/referências ------------------------ */
+
+export async function addAttachment(taskId: string, url: string, label: string) {
+  await guard();
+  const clean = url.trim();
+  if (!clean) throw new Error("Link vazio.");
+  const user = await getUser();
+  const db = await createUntypedClient();
+  const { error } = await db.from("task_attachments").insert({
+    task_id: taskId,
+    url: clean,
+    label: label.trim() || null,
+    added_by: user?.id ?? null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
+export async function deleteAttachment(id: string) {
+  await guard();
+  const db = await createUntypedClient();
+  const { error } = await db.from("task_attachments").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/tarefas");
+}
+
 /* --------------------------- Entregas ----------------------------- */
 
 export async function submitDelivery(

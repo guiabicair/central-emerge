@@ -160,7 +160,7 @@ export default async function CalendarioPage({
       time: e.is_all_day || b.hm === "00:00" ? null : b.hm,
       color: COLOR_TOKEN[(e.color ?? "").toLowerCase()] ?? "var(--data)",
       meta: EVENT_TYPE_LABEL[e.event_type] ?? e.event_type,
-      href: e.task_id ? "/tarefas" : null,
+      href: e.task_id ? `/tarefas?open=${e.task_id}` : null,
     });
   }
 
@@ -180,7 +180,7 @@ export default async function CalendarioPage({
       time: null,
       color: done ? "var(--ink-muted)" : "var(--action)",
       meta: done ? "prazo · encerrada" : "prazo",
-      href: "/tarefas",
+      href: `/tarefas?open=${t.id}`,
     });
   }
 

@@ -124,17 +124,62 @@ function sanitizePost(input: PostInput) {
   };
 }
 
+/**
+ * Cria a task espelho de um post social (título + prazo = data do post),
+ * já preenchendo o vínculo nos dois sentidos. Usada quando o post é criado
+ * sem uma tarefa manual selecionada — assim toda peça de social vira
+ * automaticamente uma tarefa real em /tarefas, sem passo manual extra.
+ */
+async function createMirrorTask(
+  db: Awaited<ReturnType<typeof createUntypedClient>>,
+  title: string,
+  date: string,
+  userId: string | null,
+) {
+  const { data: cols } = await db
+    .from("task_statuses")
+    .select("name, position")
+    .order("position")
+    .limit(1);
+  const fallbackStatus = (cols?.[0] as { name: string } | undefined)?.name ?? "pending";
+  const { data, error } = await db
+    .from("tasks")
+    .insert({
+      title: `[Social] ${title}`,
+      status: fallbackStatus,
+      priority: "medium",
+      due_date: date,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) return null;
+  return (data as { id: string }).id;
+}
+
 export async function createPost(projectId: string, input: PostInput) {
   await guard();
   const user = await getUser();
   const db = await createUntypedClient();
+
+  let taskId = input.task_id || null;
+  if (!taskId) {
+    taskId = await createMirrorTask(db, input.title.trim() || "(sem título)", input.date, user?.id ?? null);
+  }
+
   const { data, error } = await db
     .from("social_posts")
-    .insert({ project_id: projectId, ...sanitizePost(input), created_by: user?.id ?? null })
+    .insert({
+      project_id: projectId,
+      ...sanitizePost(input),
+      task_id: taskId,
+      created_by: user?.id ?? null,
+    })
     .select("id")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Falhou ao criar post.");
   revalidatePath(REV);
+  revalidatePath("/tarefas");
   return { id: (data as { id: string }).id };
 }
 

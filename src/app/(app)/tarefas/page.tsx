@@ -69,6 +69,14 @@ interface SocialPostLinkDb {
   task_id: string;
   project_id: string;
 }
+interface AttachmentDb {
+  id: string;
+  task_id: string;
+  url: string;
+  label: string | null;
+  added_by: string | null;
+  created_at: string;
+}
 
 export default async function TarefasPage() {
   const supabase = await createClient();
@@ -84,6 +92,7 @@ export default async function TarefasPage() {
     clientsRes,
     commentsRes,
     deliveriesRes,
+    attachmentsRes,
     timeRes,
     templatesRes,
     canManage,
@@ -119,6 +128,10 @@ export default async function TarefasPage() {
         "id, task_id, submitted_by, drive_folder_url, description, status, submitted_at, reviewed_by, reviewed_at, feedback",
       )
       .order("submitted_at"),
+    db
+      .from("task_attachments")
+      .select("id, task_id, url, label, added_by, created_at")
+      .order("created_at"),
     db
       .from("time_entries")
       .select("id, task_id, user_id, start_time, end_time, is_active"),
@@ -236,6 +249,19 @@ export default async function TarefasPage() {
     delByTask.set(d.task_id, arr);
   }
 
+  const attachByTask = new Map<string, TaskRow["attachments"]>();
+  for (const a of (attachmentsRes.data ?? []) as AttachmentDb[]) {
+    const arr = attachByTask.get(a.task_id) ?? [];
+    arr.push({
+      id: a.id,
+      url: a.url,
+      label: a.label,
+      addedBy: uname(a.added_by),
+      createdAt: a.created_at,
+    });
+    attachByTask.set(a.task_id, arr);
+  }
+
   const loggedByTask = new Map<string, number>();
   const intervalsByTask = new Map<string, TaskRow["timeIntervals"]>();
   const activeTimerByTask = new Map<string, { id: string; startTime: string }>();
@@ -282,6 +308,7 @@ export default async function TarefasPage() {
     archived: archivedSet.has(t.id),
     comments: commentsByTask.get(t.id) ?? [],
     deliveries: delByTask.get(t.id) ?? [],
+    attachments: attachByTask.get(t.id) ?? [],
     loggedSeconds: Math.round(loggedByTask.get(t.id) ?? 0),
     activeTimer: activeTimerByTask.get(t.id) ?? null,
     timeIntervals: intervalsByTask.get(t.id) ?? [],

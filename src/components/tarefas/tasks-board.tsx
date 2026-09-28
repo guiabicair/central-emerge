@@ -118,6 +118,13 @@ export interface TaskRow {
     reviewedAt: string | null;
     feedback: string | null;
   }[];
+  attachments: {
+    id: string;
+    url: string;
+    label: string | null;
+    addedBy: string;
+    createdAt: string;
+  }[];
   loggedSeconds: number;
   activeTimer: { id: string; startTime: string } | null;
   timeIntervals: {

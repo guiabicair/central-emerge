@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Play, Send, Square, Trash2, X } from "lucide-react";
+import { Check, Link2, Play, Plus, Send, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  addAttachment,
   addComment,
+  deleteAttachment,
   deleteComment,
   deleteDelivery,
   deleteTimeEntry,
@@ -37,11 +39,115 @@ export function TaskDetailSections({ task }: { task: TaskRow }) {
   return (
     <div className="border-line space-y-4 border-t pt-4">
       <TimerSection task={task} />
+      <AttachmentsSection task={task} />
       <DeliveriesSection task={task} />
       {task.linkedSocialPosts.length > 0 && (
         <LinkedSocialPostsSection posts={task.linkedSocialPosts} />
       )}
       <CommentsSection task={task} />
+    </div>
+  );
+}
+
+/* ------------------- Anexos/referências ------------------- */
+
+function AttachmentsSection({ task }: { task: TaskRow }) {
+  const [pending, start] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+
+  const run = (fn: () => Promise<unknown>, after?: () => void) =>
+    start(async () => {
+      try {
+        await fn();
+        after?.();
+      } catch (e) {
+        toast.error(actionError(e, "Falhou ao anexar"));
+      }
+    });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-ink-muted text-[11px] font-semibold uppercase">
+          Anexos e referências ({task.attachments.length})
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Fechar" : "+ anexar link"}
+        </Button>
+      </div>
+
+      {open && (
+        <div className="border-line mt-1 flex gap-2 rounded-md border p-2.5">
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Nome (ex: Briefing)"
+            className="border-line-strong focus:border-data h-8 w-2/5 rounded-md border bg-transparent px-2 text-sm outline-none"
+          />
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://…"
+            className="border-line-strong focus:border-data h-8 flex-1 rounded-md border bg-transparent px-2 text-sm outline-none"
+          />
+          <Button
+            size="xs"
+            disabled={pending || !url.trim()}
+            onClick={() =>
+              run(
+                () => addAttachment(task.id, url, label),
+                () => {
+                  setUrl("");
+                  setLabel("");
+                  setOpen(false);
+                },
+              )
+            }
+          >
+            <Plus className="size-3.5" />
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-2 space-y-1.5">
+        {task.attachments.length === 0 && !open && (
+          <p className="text-ink-muted text-xs">Nenhum anexo ainda.</p>
+        )}
+        {task.attachments.map((a) => (
+          <div
+            key={a.id}
+            className="border-line group flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs"
+          >
+            <Link2 className="text-ink-muted size-3.5 shrink-0" />
+            <Link
+              href={a.url}
+              target="_blank"
+              rel="noreferrer"
+              className="min-w-0 flex-1 truncate hover:underline"
+              title={a.url}
+            >
+              {a.label || a.url}
+            </Link>
+            <span className="text-ink-muted shrink-0">
+              {a.addedBy} · {formatDate(a.createdAt)}
+            </span>
+            <button
+              type="button"
+              onClick={() => run(() => deleteAttachment(a.id))}
+              className="text-ink-muted shrink-0 opacity-0 hover:text-red-400 group-hover:opacity-100"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
