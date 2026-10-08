@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { actionError } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { SocialMedia } from "./social-media";
+import { driveFileId, SocialMedia } from "./social-media";
 
 const MAX_UPLOAD_MB = 50;
 
@@ -117,6 +117,8 @@ export function PostDialog({
   const [comment, setComment] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadFmt, setUploadFmt] = useState("feed_4_5");
+  // arte aberta no player dentro do post (url)
+  const [preview, setPreview] = useState<string | null>(null);
 
   const set = <K extends keyof PostInput>(k: K, v: PostInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -307,12 +309,21 @@ export function PostDialog({
                       <div className="mt-2 flex flex-wrap gap-2">
                         {arts.map((a) => (
                           <div key={a.id} className="group relative">
-                            <a href={a.image_url} target="_blank" rel="noreferrer" title="Abrir">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreview((cur) => (cur === a.image_url ? null : a.image_url))
+                              }
+                              title="Visualizar"
+                              className={`block rounded-md ${
+                                preview === a.image_url ? "ring-data ring-2" : ""
+                              }`}
+                            >
                               <SocialMedia
                                 src={a.image_url}
                                 className="border-line h-24 w-24 rounded-md border object-cover"
                               />
-                            </a>
+                            </button>
                             {canManage && (
                               <button
                                 type="button"
@@ -320,6 +331,7 @@ export function PostDialog({
                                   start(async () => {
                                     try {
                                       await deleteAsset(a.id);
+                                      if (preview === a.image_url) setPreview(null);
                                     } catch (e) {
                                       toast.error(actionError(e, "Falhou"));
                                     }
@@ -338,6 +350,28 @@ export function PostDialog({
                 );
               })}
             </div>
+            {preview && (
+              <div className="border-line mt-2 overflow-hidden rounded-lg border">
+                <div className="text-ink-muted flex items-center justify-between px-2.5 py-1.5 text-xs">
+                  <a href={preview} target="_blank" rel="noreferrer" className="hover:underline">
+                    {driveFileId(preview) ? "Abrir no Drive" : "Abrir em nova aba"}
+                  </a>
+                  <button type="button" onClick={() => setPreview(null)} title="Fechar">
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+                <SocialMedia
+                  key={preview}
+                  src={preview}
+                  controls
+                  className={
+                    driveFileId(preview)
+                      ? "block h-[480px] w-full border-0 bg-black"
+                      : "block max-h-[480px] w-full bg-black object-contain"
+                  }
+                />
+              </div>
+            )}
             <input
               ref={fileRef}
               type="file"
