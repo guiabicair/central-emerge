@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import { Play } from "lucide-react";
+
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|ogv)(\?|$)/i;
 const DRIVE_ID = /drive\.google\.com\/file\/d\/([\w-]+)/;
 
@@ -7,6 +12,31 @@ export function isVideoUrl(url: string) {
 
 export function driveFileId(url: string) {
   return url.match(DRIVE_ID)?.[1] ?? null;
+}
+
+/** Miniatura via /social/thumb (proxy da Central); sem miniatura → ícone. */
+function DriveThumb({ id, className }: { id: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span
+        className={`bg-surface-2 text-ink-muted grid place-items-center ${className ?? ""}`}
+        title="Miniatura ainda sendo gerada pelo Drive"
+      >
+        <Play className="size-1/3 max-h-6 max-w-6" />
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/social/thumb/${id}`}
+      alt=""
+      loading="lazy"
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 /**
@@ -35,15 +65,7 @@ export function SocialMedia({
         />
       );
     }
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`https://drive.google.com/thumbnail?id=${driveId}&sz=w800`}
-        alt=""
-        className={className}
-        referrerPolicy="no-referrer"
-      />
-    );
+    return <DriveThumb id={driveId} className={className} />;
   }
   if (isVideoUrl(src)) {
     return (
