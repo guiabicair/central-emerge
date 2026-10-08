@@ -60,3 +60,41 @@ export function SocialMedia({
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={src} alt="" className={className} />;
 }
+
+/** "reels_9_16" → [9, 16]. Sem proporção no nome: 4:5. */
+export function formatRatio(format: string): [number, number] {
+  const m = format.match(/_(\d+)_(\d+)$/);
+  return m ? [Number(m[1]), Number(m[2])] : [4, 5];
+}
+
+/**
+ * Arte/vídeo em tamanho de visualização: respeita a proporção do formato
+ * (9:16 fica em pé, 16:9 deitado) e cabe na tela sem rolar.
+ */
+export function SocialMediaFrame({
+  src,
+  format,
+  maxHeight = "70vh",
+}: {
+  src: string;
+  format: string;
+  maxHeight?: string;
+}) {
+  const [w, h] = formatRatio(format);
+  return (
+    <div
+      className="mx-auto overflow-hidden rounded-lg bg-black"
+      style={{
+        aspectRatio: `${w} / ${h}`,
+        width: `min(100%, calc(${maxHeight} * ${w} / ${h}))`,
+      }}
+    >
+      <SocialMedia
+        key={src}
+        src={src}
+        controls
+        className="block h-full w-full border-0 object-contain"
+      />
+    </div>
+  );
+}

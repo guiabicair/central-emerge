@@ -9,7 +9,7 @@ import {
   STATUS_META,
 } from "@/app/(app)/calendario-social/social-constants";
 import { createClient } from "@/lib/supabase/client";
-import { driveFileId, SocialMedia } from "./social-media";
+import { SocialMediaFrame } from "./social-media";
 
 interface PubComment {
   id: string;
@@ -215,18 +215,12 @@ export function SocialPublicView({
                     className="border-line bg-surface overflow-hidden rounded-2xl border"
                   >
                     {p.assets[0] && (
-                      <div className="bg-surface-2 flex gap-2 overflow-x-auto p-2">
+                      // uma arte por vez, no tamanho do formato; várias → rola de lado
+                      <div className="bg-surface-2 flex snap-x snap-mandatory gap-2 overflow-x-auto p-2">
                         {p.assets.map((a) => (
-                          <SocialMedia
-                            key={a.id}
-                            src={a.image_url}
-                            controls
-                            className={
-                              driveFileId(a.image_url)
-                                ? "h-80 w-64 shrink-0 rounded-lg border-0"
-                                : "max-h-80 rounded-lg object-contain"
-                            }
-                          />
+                          <div key={a.id} className="w-full shrink-0 snap-center">
+                            <SocialMediaFrame src={a.image_url} format={a.format} maxHeight="60vh" />
+                          </div>
                         ))}
                       </div>
                     )}

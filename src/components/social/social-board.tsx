@@ -8,8 +8,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns3,
+  Eye,
   Flag,
   Link2,
+  Pencil,
   Plus,
   Share2,
   Trash2,
@@ -32,6 +34,7 @@ import {
   STATUS_META,
 } from "@/app/(app)/calendario-social/social-constants";
 import { PostDialog } from "@/components/social/social-post-dialog";
+import { PostView } from "@/components/social/social-post-view";
 import type {
   SocialMarker,
   SocialPost,
@@ -84,6 +87,7 @@ export function SocialBoard({
   const [monthStart, setMonthStart] = useState<Date>(parseMonth(month));
   const [dialog, setDialog] = useState<
     | { kind: "post"; date: string; postId: string | null }
+    | { kind: "view"; postId: string }
     | { kind: "project" }
     | { kind: "marker"; date: string }
     | { kind: "share" }
@@ -121,7 +125,7 @@ export function SocialBoard({
     const p = posts.find((pp) => pp.id === openId);
     if (!p) return;
     openedFromQueryRef.current = true;
-    setDialog({ kind: "post", date: p.date, postId: p.id });
+    setDialog({ kind: "view", postId: p.id });
     const params = new URLSearchParams(window.location.search);
     params.delete("open");
     const qs = params.toString();
@@ -132,6 +136,10 @@ export function SocialBoard({
 
   // post do dialog sempre re-derivado da lista viva (mostra arte recém-enviada
   // sem precisar fechar/reabrir).
+  const viewPost =
+    dialog?.kind === "view"
+      ? (posts.find((p) => p.id === dialog.postId) ?? null)
+      : null;
   const openPost =
     dialog?.kind === "post" && dialog.postId
       ? (posts.find((p) => p.id === dialog.postId) ?? null)
@@ -364,7 +372,9 @@ export function SocialBoard({
                             key={p.id}
                             post={p}
                             draggable={canManage}
-                            onOpen={() =>
+                            canManage={canManage}
+                            onView={() => setDialog({ kind: "view", postId: p.id })}
+                            onEdit={() =>
                               setDialog({ kind: "post", date: p.date, postId: p.id })
                             }
                           />
@@ -380,11 +390,23 @@ export function SocialBoard({
           <KanbanView
             posts={posts}
             canManage={canManage}
-            onOpen={(p) => setDialog({ kind: "post", date: p.date, postId: p.id })}
+            onView={(p) => setDialog({ kind: "view", postId: p.id })}
+            onEdit={(p) => setDialog({ kind: "post", date: p.date, postId: p.id })}
           />
         )}
       </div>
 
+      {viewPost && (
+        <PostView
+          key={viewPost.id}
+          post={viewPost}
+          canManage={canManage}
+          onClose={() => setDialog(null)}
+          onEdit={() =>
+            setDialog({ kind: "post", date: viewPost.date, postId: viewPost.id })
+          }
+        />
+      )}
       {dialog?.kind === "post" && (
         <PostDialog
           key={activeId ?? "none"}
@@ -525,41 +547,70 @@ function ProjectRail({
 function PostChip({
   post,
   draggable,
-  onOpen,
+  canManage,
+  onView,
+  onEdit,
 }: {
   post: SocialPost;
   draggable: boolean;
-  onOpen: () => void;
+  canManage: boolean;
+  onView: () => void;
+  onEdit: () => void;
 }) {
   const thumb = post.assets[0]?.image_url;
   const meta = STATUS_META[post.status] ?? STATUS_META.rascunho;
   return (
-    <button
-      type="button"
+    <div
       draggable={draggable}
       onDragStart={(e) => e.dataTransfer.setData("text/post-id", post.id)}
-      onClick={onOpen}
-      className="border-line hover:border-data/40 flex w-full items-center gap-1.5 rounded-md border p-1 text-left"
+      className="group border-line hover:border-data/40 relative flex w-full items-center gap-1.5 rounded-md border p-1"
     >
-      {thumb ? (
-        <SocialMedia src={thumb} className="size-7 shrink-0 rounded object-cover" />
-      ) : (
-        <span className="bg-surface-2 text-ink-faint grid size-7 shrink-0 place-items-center rounded text-[9px]">
-          sem arte
+      <button
+        type="button"
+        onClick={onView}
+        title="Visualizar"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+      >
+        {thumb ? (
+          <SocialMedia src={thumb} className="size-7 shrink-0 rounded object-cover" />
+        ) : (
+          <span className="bg-surface-2 text-ink-faint grid size-7 shrink-0 place-items-center rounded text-[9px]">
+            sem arte
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[11px] font-medium">{post.title}</span>
+          <span className="text-ink-faint text-[10px]">
+            {post.time?.slice(0, 5) ?? "—"}
+          </span>
         </span>
-      )}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[11px] font-medium">{post.title}</span>
-        <span className="text-ink-faint text-[10px]">
-          {post.time?.slice(0, 5) ?? "—"}
-        </span>
-      </span>
+      </button>
       <span
-        className="size-1.5 shrink-0 rounded-full"
+        className="size-1.5 shrink-0 rounded-full group-hover:hidden"
         style={{ background: meta.dot }}
         title={meta.label}
       />
-    </button>
+      <div className="bg-surface absolute top-0.5 right-0.5 hidden gap-0.5 rounded group-hover:flex">
+        <button
+          type="button"
+          onClick={onView}
+          title="Visualizar"
+          className="text-ink-muted hover:text-ink rounded p-1"
+        >
+          <Eye className="size-3" />
+        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={onEdit}
+            title="Editar"
+            className="text-ink-muted hover:text-ink rounded p-1"
+          >
+            <Pencil className="size-3" />
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -567,11 +618,13 @@ function PostChip({
 function KanbanView({
   posts,
   canManage,
-  onOpen,
+  onView,
+  onEdit,
 }: {
   posts: SocialPost[];
   canManage: boolean;
-  onOpen: (p: SocialPost) => void;
+  onView: (p: SocialPost) => void;
+  onEdit: (p: SocialPost) => void;
 }) {
   const [, start] = useTransition();
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -623,25 +676,37 @@ function KanbanView({
               }`}
             >
               {items.map((p) => (
-                <button
+                <div
                   key={p.id}
-                  type="button"
                   draggable={canManage}
                   onDragStart={(e) => e.dataTransfer.setData("text/post-id", p.id)}
-                  onClick={() => onOpen(p)}
-                  className="border-line bg-surface hover:border-data/40 rounded-lg border p-2 text-left"
+                  className="border-line bg-surface hover:border-data/40 rounded-lg border p-2"
                 >
-                  {p.assets[0]?.image_url && (
-                    <SocialMedia
-                      src={p.assets[0].image_url}
-                      className="mb-1.5 h-24 w-full rounded object-cover"
-                    />
-                  )}
-                  <span className="block truncate text-sm font-medium">{p.title}</span>
-                  <span className="text-ink-muted text-[11px]">
-                    {p.date} · {p.time?.slice(0, 5) ?? "—"}
-                  </span>
-                </button>
+                  <button type="button" onClick={() => onView(p)} className="block w-full text-left">
+                    {p.assets[0]?.image_url && (
+                      <SocialMedia
+                        src={p.assets[0].image_url}
+                        className="mb-1.5 h-32 w-full rounded object-cover"
+                      />
+                    )}
+                    <span className="block truncate text-sm font-medium">{p.title}</span>
+                  </button>
+                  <div className="mt-0.5 flex items-center justify-between">
+                    <span className="text-ink-muted text-[11px]">
+                      {p.date} · {p.time?.slice(0, 5) ?? "—"}
+                    </span>
+                    <span className="flex gap-0.5">
+                      <Button variant="ghost" size="icon-sm" onClick={() => onView(p)} title="Visualizar">
+                        <Eye className="size-3.5" />
+                      </Button>
+                      {canManage && (
+                        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(p)} title="Editar">
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+                </div>
               ))}
               {items.length === 0 && (
                 <p className="text-ink-faint px-2 py-6 text-center text-xs">Vazio</p>

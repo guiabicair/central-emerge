@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { actionError } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { driveFileId, SocialMedia } from "./social-media";
+import { driveFileId, SocialMedia, SocialMediaFrame } from "./social-media";
 
 const MAX_UPLOAD_MB = 50;
 
@@ -360,15 +360,10 @@ export function PostDialog({
                     <X className="size-3.5" />
                   </button>
                 </div>
-                <SocialMedia
-                  key={preview}
+                <SocialMediaFrame
                   src={preview}
-                  controls
-                  className={
-                    driveFileId(preview)
-                      ? "block h-[480px] w-full border-0 bg-black"
-                      : "block max-h-[480px] w-full bg-black object-contain"
-                  }
+                  format={post?.assets.find((x) => x.image_url === preview)?.format ?? uploadFmt}
+                  maxHeight="65vh"
                 />
               </div>
             )}
