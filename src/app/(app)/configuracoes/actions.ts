@@ -6,6 +6,14 @@ import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
 import { refreshAccessToken } from "@/lib/google-calendar/oauth";
 import { syncEvents } from "@/lib/google-calendar/sync";
+import { getSessionAccess } from "@/lib/auth/roles";
+import {
+  getDriveAccessToken,
+  getDriveConnection,
+  getFile,
+  parseFolderId,
+} from "@/lib/google-drive/drive";
+import { createUntypedAdminClient } from "@/lib/supabase/admin";
 
 interface Connection {
   user_id: string;
@@ -69,6 +77,48 @@ export async function disconnectGoogleCalendar(): Promise<{ error?: string } | v
     .from("google_calendar_connections")
     .delete()
     .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/configuracoes");
+}
+
+/* ------------------------------------------------------------ Google Drive */
+
+/** Define a pasta raiz dos clientes no Drive (URL da pasta ou id). Só admin. */
+export async function setDriveRootFolder(input: string): Promise<{ error?: string; name?: string }> {
+  if (!(await getSessionAccess()).isAdmin) return { error: "Só admin altera o Drive." };
+  const folderId = parseFolderId(input);
+  if (!folderId) return { error: "Cole o link de uma pasta do Drive." };
+  const conn = await getDriveConnection();
+  if (!conn) return { error: "Conecte o Google Drive primeiro." };
+  try {
+    const token = await getDriveAccessToken(conn);
+    const f = await getFile(token, folderId);
+    if (f.mimeType !== "application/vnd.google-apps.folder" || f.trashed) {
+      return { error: "Esse link não é de uma pasta (ou ela está na lixeira)." };
+    }
+    const db = createUntypedAdminClient();
+    const { error } = await db
+      .from("google_drive_connection")
+      .update({ root_folder_id: f.id, root_folder_name: f.name, updated_at: new Date().toISOString() })
+      .eq("id", true);
+    if (error) return { error: error.message };
+    // pastas em cache apontavam pra raiz antiga
+    await db.from("social_projects").update({ drive_folder_id: null }).not("drive_folder_id", "is", null);
+    await db.from("social_posts").update({ drive_folder_id: null }).not("drive_folder_id", "is", null);
+    revalidatePath("/configuracoes");
+    return { name: f.name };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Falhou ao ler a pasta." };
+  }
+}
+
+/** Desconecta o Drive. Arquivos já enviados continuam no Drive e nos posts. */
+export async function disconnectGoogleDrive(): Promise<{ error?: string } | void> {
+  if (!(await getSessionAccess()).isAdmin) return { error: "Só admin altera o Drive." };
+  const { error } = await createUntypedAdminClient()
+    .from("google_drive_connection")
+    .delete()
+    .eq("id", true);
   if (error) return { error: error.message };
   revalidatePath("/configuracoes");
 }

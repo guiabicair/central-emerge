@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import {
   SOCIAL_PLATFORMS,
@@ -10,6 +11,15 @@ import {
   type PostInput,
 } from "@/app/(app)/calendario-social/social-constants";
 import { can } from "@/lib/auth/roles";
+import {
+  driveViewUrl,
+  findOrCreateFolder,
+  getDriveAccessToken,
+  getDriveConnection,
+  getFile,
+  shareAnyoneWithLink,
+  startResumableUpload,
+} from "@/lib/google-drive/drive";
 import { getUser } from "@/lib/supabase/auth";
 import { createUntypedClient } from "@/lib/supabase/server";
 
@@ -306,6 +316,138 @@ export async function registerAsset(postId: string, format: string, path: string
   await ensureMirrorTask(db, postId);
   revalidatePath(REV);
   revalidatePath("/tarefas");
+}
+
+/* ------------------------------------------------------------------ artes (Google Drive) */
+
+type Db = Awaited<ReturnType<typeof createUntypedClient>>;
+
+/**
+ * Pasta do post no Drive: <raiz>/<cliente>/Social/<data – título>. Usa a
+ * pasta do cliente se já existir (nome comparado sem acento/caixa), cria o
+ * que faltar, e guarda os ids pra não procurar de novo.
+ */
+async function resolvePostFolder(db: Db, token: string, rootId: string, postId: string) {
+  const { data: postRow } = await db
+    .from("social_posts")
+    .select("title, date, project_id, drive_folder_id")
+    .eq("id", postId)
+    .single();
+  const post = postRow as {
+    title: string;
+    date: string;
+    project_id: string;
+    drive_folder_id: string | null;
+  } | null;
+  if (!post) throw new Error("Post não encontrado.");
+  if (post.drive_folder_id) return post.drive_folder_id;
+
+  const { data: projRow } = await db
+    .from("social_projects")
+    .select("name, client_id, drive_folder_id")
+    .eq("id", post.project_id)
+    .single();
+  const proj = projRow as { name: string; client_id: string | null; drive_folder_id: string | null } | null;
+  if (!proj) throw new Error("Projeto não encontrado.");
+
+  let socialFolder = proj.drive_folder_id;
+  if (!socialFolder) {
+    const names = [proj.name];
+    if (proj.client_id) {
+      const { data: c } = await db.from("clients").select("name").eq("id", proj.client_id).single();
+      const clientName = (c as { name: string } | null)?.name;
+      if (clientName) names.push(clientName);
+    }
+    const clientFolder = await findOrCreateFolder(token, rootId, names);
+    socialFolder = await findOrCreateFolder(token, clientFolder, ["Social"]);
+    await db.from("social_projects").update({ drive_folder_id: socialFolder }).eq("id", post.project_id);
+  }
+
+  const folderName = `${post.date} – ${post.title}`.replace(/[\\/]/g, "-").slice(0, 120);
+  const postFolder = await findOrCreateFolder(token, socialFolder, [folderName]);
+  await db.from("social_posts").update({ drive_folder_id: postFolder }).eq("id", postId);
+  return postFolder;
+}
+
+/**
+ * Abre o upload de uma arte direto pro Drive da Emerge. Devolve a URL de
+ * upload (o browser manda o arquivo pra ela, sem passar pela Vercel) ou
+ * `drive: false` se o Drive não estiver configurado — aí o client cai pro
+ * Storage do Supabase. Erro volta como dado: em produção o Next apaga a
+ * mensagem de exceptions de Server Action.
+ */
+export async function startDriveUpload(
+  postId: string,
+  file: { name: string; mimeType: string; size: number },
+): Promise<{ drive: false } | { drive: true; uploadUrl: string } | { error: string }> {
+  if (!(await can("social.manage"))) return { error: "Sem permissão para gerir o calendário social." };
+  const conn = await getDriveConnection().catch(() => null);
+  if (!conn?.root_folder_id) return { drive: false };
+
+  const origin = (await headers()).get("origin");
+  if (!origin) return { error: "Requisição sem origin." };
+  const db = await createUntypedClient();
+  try {
+    const token = await getDriveAccessToken(conn);
+    const open = async () =>
+      startResumableUpload(
+        token,
+        await resolvePostFolder(db, token, conn.root_folder_id!, postId),
+        { name: file.name.slice(0, 200), mimeType: file.mimeType, size: file.size },
+        origin,
+      );
+    try {
+      return { drive: true, uploadUrl: await open() };
+    } catch (e) {
+      // pasta em cache foi apagada/movida no Drive → limpa o cache e recria
+      if ((e as { status?: number }).status !== 404) throw e;
+      const { data: p } = await db.from("social_posts").select("project_id").eq("id", postId).single();
+      await db.from("social_posts").update({ drive_folder_id: null }).eq("id", postId);
+      if (p) {
+        await db
+          .from("social_projects")
+          .update({ drive_folder_id: null })
+          .eq("id", (p as { project_id: string }).project_id);
+      }
+      return { drive: true, uploadUrl: await open() };
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Falhou ao abrir upload no Drive." };
+  }
+}
+
+/** Depois do upload: libera o link pra leitura e registra a arte no post. */
+export async function finishDriveUpload(
+  postId: string,
+  format: string,
+  fileId: string,
+): Promise<{ error?: string }> {
+  if (!(await can("social.manage"))) return { error: "Sem permissão para gerir o calendário social." };
+  const conn = await getDriveConnection().catch(() => null);
+  if (!conn) return { error: "Google Drive não está conectado." };
+  const db = await createUntypedClient();
+  try {
+    const token = await getDriveAccessToken(conn);
+    const { data: p } = await db.from("social_posts").select("drive_folder_id").eq("id", postId).single();
+    const folder = (p as { drive_folder_id: string | null } | null)?.drive_folder_id;
+    const f = await getFile(token, fileId);
+    // só aceita arquivo que caiu na pasta deste post (não um id qualquer)
+    if (!folder || !f.parents?.includes(folder)) return { error: "Arquivo fora da pasta do post." };
+    await shareAnyoneWithLink(token, f.id);
+    const { error } = await db.from("social_post_assets").insert({
+      post_id: postId,
+      format,
+      image_url: driveViewUrl(f.id),
+      sort: Date.now() % 100000,
+    });
+    if (error) return { error: error.message };
+    await ensureMirrorTask(db, postId);
+    revalidatePath(REV);
+    revalidatePath("/tarefas");
+    return {};
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Falhou ao registrar no Drive." };
+  }
 }
 
 export async function deleteAsset(id: string) {

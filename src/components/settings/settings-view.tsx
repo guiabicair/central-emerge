@@ -19,6 +19,8 @@ import { toast } from "sonner";
 
 import {
   disconnectGoogleCalendar,
+  disconnectGoogleDrive,
+  setDriveRootFolder,
   syncGoogleCalendarNow,
 } from "@/app/(app)/configuracoes/actions";
 import { PushNotificationsRow } from "@/components/settings/push-notifications-row";
@@ -161,10 +163,94 @@ function GoogleCalendarRow({
   );
 }
 
+interface GoogleDriveState {
+  connected: boolean;
+  email: string | null;
+  rootFolderName: string | null;
+  canManage: boolean;
+}
+
+function GoogleDriveRow({ googleDrive }: { googleDrive: GoogleDriveState }) {
+  const [pending, startTransition] = useTransition();
+  const [folder, setFolder] = useState("");
+
+  function saveFolder() {
+    startTransition(async () => {
+      const res = await setDriveRootFolder(folder);
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success(`Pasta raiz: ${res.name}`);
+        setFolder("");
+      }
+    });
+  }
+
+  function disconnect() {
+    if (!window.confirm("Desconectar o Google Drive? Os arquivos já enviados continuam no Drive.")) return;
+    startTransition(async () => {
+      const res = await disconnectGoogleDrive();
+      if (res?.error) toast.error(res.error);
+      else toast.success("Drive desconectado.");
+    });
+  }
+
+  return (
+    <div className="border-border space-y-2.5 rounded-xl border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-lg">
+            <HardDrive className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-medium">Google Drive</div>
+            <div className="text-muted-foreground truncate text-xs">
+              {googleDrive.connected
+                ? `${googleDrive.email ?? "conectado"} · ${
+                    googleDrive.rootFolderName
+                      ? `pasta raiz: ${googleDrive.rootFolderName}`
+                      : "falta escolher a pasta raiz"
+                  }`
+                : "Artes e vídeos do Calendário Social vão pro Drive da Emerge."}
+            </div>
+          </div>
+        </div>
+        {googleDrive.canManage &&
+          (googleDrive.connected ? (
+            <Button size="xs" variant="ghost" disabled={pending} onClick={disconnect}>
+              Desconectar
+            </Button>
+          ) : (
+            <a
+              href="/api/google-drive/authorize"
+              className={buttonVariants({ variant: "outline", size: "xs" })}
+            >
+              Conectar
+            </a>
+          ))}
+      </div>
+      {googleDrive.connected && googleDrive.canManage && (
+        <div className="flex gap-1.5">
+          <input
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            placeholder="Link da pasta de clientes no Drive"
+            className="border-border h-7 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-xs outline-none"
+          />
+          <Button size="xs" variant="outline" disabled={pending || !folder.trim()} onClick={saveFolder}>
+            {googleDrive.rootFolderName ? "Trocar pasta" : "Salvar pasta"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsView({
   googleCalendar,
+  googleDrive,
 }: {
   googleCalendar: { connected: boolean; email: string | null; lastSyncedAt: string | null };
+  googleDrive: GoogleDriveState;
 }) {
   const [active, setActive] = useState<SectionId>("perfil");
   const router = useRouter();
@@ -183,7 +269,9 @@ export function SettingsView({
           : "Google Calendar conectado — nenhum evento nos próximos 90 dias.",
       );
     }
-    if (err || ok) router.replace("/configuracoes");
+    const drive = searchParams.get("drive_connected");
+    if (drive) toast.success("Google Drive conectado — agora cole o link da pasta de clientes.");
+    if (err || ok || drive) router.replace("/configuracoes");
   }, [searchParams, router]);
 
   const [nome, setNome] = useState("Equipe Emerge");
@@ -304,13 +392,7 @@ export function SettingsView({
               <div className="space-y-2">
                 <GoogleCalendarRow googleCalendar={googleCalendar} />
                 <PushNotificationsRow />
-                <IntegrationRow
-                  icon={HardDrive}
-                  nome="Google Drive"
-                  conectado={false}
-                >
-                  Requer configuração OAuth.
-                </IntegrationRow>
+                <GoogleDriveRow googleDrive={googleDrive} />
                 <IntegrationRow
                   icon={CreditCard}
                   nome="Asaas"

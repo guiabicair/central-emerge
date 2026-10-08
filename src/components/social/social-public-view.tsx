@@ -9,7 +9,7 @@ import {
   STATUS_META,
 } from "@/app/(app)/calendario-social/social-constants";
 import { createClient } from "@/lib/supabase/client";
-import { SocialMedia } from "./social-media";
+import { driveFileId, SocialMedia } from "./social-media";
 
 interface PubComment {
   id: string;
@@ -221,7 +221,11 @@ export function SocialPublicView({
                             key={a.id}
                             src={a.image_url}
                             controls
-                            className="max-h-80 rounded-lg object-contain"
+                            className={
+                              driveFileId(a.image_url)
+                                ? "h-80 w-64 shrink-0 rounded-lg border-0"
+                                : "max-h-80 rounded-lg object-contain"
+                            }
                           />
                         ))}
                       </div>

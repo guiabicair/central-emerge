@@ -12,7 +12,9 @@ import {
   deletePost,
   setPostStatus,
   updatePost,
+  finishDriveUpload,
   registerAsset,
+  startDriveUpload,
 } from "@/app/(app)/calendario-social/actions";
 import {
   PLATFORM_FORMAT,
@@ -34,6 +36,33 @@ import { createClient } from "@/lib/supabase/client";
 import { SocialMedia } from "./social-media";
 
 const MAX_UPLOAD_MB = 50;
+
+/** PUT do arquivo na sessão resumable do Drive; devolve o id do arquivo. */
+function putToDrive(url: string, file: File, onProgress: (pct: number) => void) {
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    let last = -1;
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const pct = Math.floor((e.loaded / e.total) * 100);
+      if (pct !== last) onProgress((last = pct));
+    };
+    xhr.onload = () => {
+      if (xhr.status !== 200 && xhr.status !== 201) {
+        reject(new Error(`Drive recusou o upload (${xhr.status}).`));
+        return;
+      }
+      try {
+        resolve((JSON.parse(xhr.responseText) as { id: string }).id);
+      } catch {
+        reject(new Error("Resposta inválida do Drive."));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Falha de rede enviando pro Drive."));
+    xhr.send(file);
+  });
+}
 
 const field =
   "border-line-strong focus:border-data h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none";
@@ -132,26 +161,42 @@ export function PostDialog({
       return;
     }
     const isVideo = file.type.startsWith("video/");
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      toast.error(`Máximo ${MAX_UPLOAD_MB} MB.`);
-      return;
-    }
     const postId = post.id;
     const format = uploadFmt;
+    const label = isVideo ? "vídeo" : "arte";
     start(async () => {
-      const id = toast.loading(isVideo ? "Enviando vídeo..." : "Enviando arte...");
+      const id = toast.loading(`Enviando ${label}...`);
       try {
-        // sobe direto do browser pro Storage: vídeo não cabe no body de um
-        // server action. Path aleatório — o bucket é read-público.
-        const ext = (file.name.split(".").pop() || (isVideo ? "mp4" : "jpg"))
-          .toLowerCase()
-          .slice(0, 5);
-        const path = `${postId}/${crypto.randomUUID()}.${ext}`;
-        const { error } = await createClient()
-          .storage.from("social")
-          .upload(path, file, { contentType: file.type || undefined, upsert: false });
-        if (error) throw new Error(error.message);
-        await registerAsset(postId, format, path);
+        const res = await startDriveUpload(postId, {
+          name: file.name,
+          mimeType: file.type,
+          size: file.size,
+        });
+        if ("error" in res) throw new Error(res.error);
+
+        if (res.drive) {
+          // vai direto do browser pro Drive da Emerge, sem limite de 50 MB
+          const fileId = await putToDrive(res.uploadUrl, file, (pct) =>
+            toast.loading(`Enviando ${label} pro Drive... ${pct}%`, { id }),
+          );
+          const done = await finishDriveUpload(postId, format, fileId);
+          if (done.error) throw new Error(done.error);
+        } else {
+          // Drive não configurado: Storage do Supabase (limite do plano)
+          if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+            throw new Error(`Máximo ${MAX_UPLOAD_MB} MB — conecte o Google Drive em Configurações.`);
+          }
+          const ext = (file.name.split(".").pop() || (isVideo ? "mp4" : "jpg"))
+            .toLowerCase()
+            .slice(0, 5);
+          // path aleatório — o bucket é read-público
+          const path = `${postId}/${crypto.randomUUID()}.${ext}`;
+          const { error } = await createClient()
+            .storage.from("social")
+            .upload(path, file, { contentType: file.type || undefined, upsert: false });
+          if (error) throw new Error(error.message);
+          await registerAsset(postId, format, path);
+        }
         toast.success(isVideo ? "Vídeo enviado" : "Arte enviada", { id });
       } catch (e) {
         toast.error(actionError(e, "Falhou o upload"), { id });
@@ -262,11 +307,12 @@ export function PostDialog({
                       <div className="mt-2 flex flex-wrap gap-2">
                         {arts.map((a) => (
                           <div key={a.id} className="group relative">
-                            <SocialMedia
-                              src={a.image_url}
-                              controls
-                              className="border-line h-24 w-24 rounded-md border object-cover"
-                            />
+                            <a href={a.image_url} target="_blank" rel="noreferrer" title="Abrir">
+                              <SocialMedia
+                                src={a.image_url}
+                                className="border-line h-24 w-24 rounded-md border object-cover"
+                              />
+                            </a>
                             {canManage && (
                               <button
                                 type="button"
