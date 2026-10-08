@@ -12,7 +12,7 @@ import {
   deletePost,
   setPostStatus,
   updatePost,
-  uploadAsset,
+  registerAsset,
 } from "@/app/(app)/calendario-social/actions";
 import {
   PLATFORM_FORMAT,
@@ -30,6 +30,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { actionError } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { SocialMedia } from "./social-media";
+
+const MAX_UPLOAD_MB = 50;
 
 const field =
   "border-line-strong focus:border-data h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none";
@@ -127,16 +131,30 @@ export function PostDialog({
       toast.error("Salve o post antes de subir arte.");
       return;
     }
-    const fd = new FormData();
-    fd.set("post_id", post.id);
-    fd.set("format", uploadFmt);
-    fd.set("file", file);
+    const isVideo = file.type.startsWith("video/");
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`Máximo ${MAX_UPLOAD_MB} MB.`);
+      return;
+    }
+    const postId = post.id;
+    const format = uploadFmt;
     start(async () => {
+      const id = toast.loading(isVideo ? "Enviando vídeo..." : "Enviando arte...");
       try {
-        await uploadAsset(fd);
-        toast.success("Arte enviada");
+        // sobe direto do browser pro Storage: vídeo não cabe no body de um
+        // server action. Path aleatório — o bucket é read-público.
+        const ext = (file.name.split(".").pop() || (isVideo ? "mp4" : "jpg"))
+          .toLowerCase()
+          .slice(0, 5);
+        const path = `${postId}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await createClient()
+          .storage.from("social")
+          .upload(path, file, { contentType: file.type || undefined, upsert: false });
+        if (error) throw new Error(error.message);
+        await registerAsset(postId, format, path);
+        toast.success(isVideo ? "Vídeo enviado" : "Arte enviada", { id });
       } catch (e) {
-        toast.error(actionError(e, "Falhou o upload"));
+        toast.error(actionError(e, "Falhou o upload"), { id });
       }
     });
   }
@@ -244,10 +262,9 @@ export function PostDialog({
                       <div className="mt-2 flex flex-wrap gap-2">
                         {arts.map((a) => (
                           <div key={a.id} className="group relative">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                            <SocialMedia
                               src={a.image_url}
-                              alt=""
+                              controls
                               className="border-line h-24 w-24 rounded-md border object-cover"
                             />
                             {canManage && (
@@ -278,7 +295,7 @@ export function PostDialog({
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*"
               hidden
               onChange={(e) => {
                 const f = e.target.files?.[0];

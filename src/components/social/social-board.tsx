@@ -48,6 +48,7 @@ import {
   ymd,
 } from "@/lib/calendar";
 import { actionError } from "@/lib/utils";
+import { SocialMedia } from "./social-media";
 
 const SHARE_BASE =
   typeof window !== "undefined" ? window.location.origin : "";
@@ -541,8 +542,7 @@ function PostChip({
       className="border-line hover:border-data/40 flex w-full items-center gap-1.5 rounded-md border p-1 text-left"
     >
       {thumb ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumb} alt="" className="size-7 shrink-0 rounded object-cover" />
+        <SocialMedia src={thumb} className="size-7 shrink-0 rounded object-cover" />
       ) : (
         <span className="bg-surface-2 text-ink-faint grid size-7 shrink-0 place-items-center rounded text-[9px]">
           sem arte
@@ -632,10 +632,8 @@ function KanbanView({
                   className="border-line bg-surface hover:border-data/40 rounded-lg border p-2 text-left"
                 >
                   {p.assets[0]?.image_url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SocialMedia
                       src={p.assets[0].image_url}
-                      alt=""
                       className="mb-1.5 h-24 w-full rounded object-cover"
                     />
                   )}

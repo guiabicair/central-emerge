@@ -1,6 +1,6 @@
 "use server";
 
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 
@@ -157,6 +157,26 @@ async function createMirrorTask(
   return (data as { id: string }).id;
 }
 
+/**
+ * Posts criados antes da task espelho existir (ou cuja criação falhou)
+ * ficam sem tarefa — cria na primeira edição/upload.
+ */
+async function ensureMirrorTask(
+  db: Awaited<ReturnType<typeof createUntypedClient>>,
+  postId: string,
+) {
+  const { data } = await db
+    .from("social_posts")
+    .select("title, date, task_id")
+    .eq("id", postId)
+    .single();
+  const post = data as { title: string; date: string; task_id: string | null } | null;
+  if (!post || post.task_id) return;
+  const user = await getUser();
+  const taskId = await createMirrorTask(db, post.title, post.date, user?.id ?? null);
+  if (taskId) await db.from("social_posts").update({ task_id: taskId }).eq("id", postId);
+}
+
 export async function createPost(projectId: string, input: PostInput) {
   await guard();
   const user = await getUser();
@@ -186,12 +206,21 @@ export async function createPost(projectId: string, input: PostInput) {
 export async function updatePost(id: string, input: PostInput) {
   await guard();
   const db = await createUntypedClient();
+  const { task_id, ...fields } = sanitizePost(input);
   const { error } = await db
     .from("social_posts")
-    .update({ ...sanitizePost(input), updated_at: new Date().toISOString() })
+    // sem tarefa escolhida = mantém a atual (a espelho); gravar null aqui
+    // com o form desatualizado faria ensureMirrorTask criar duplicata
+    .update({
+      ...fields,
+      ...(task_id ? { task_id } : {}),
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  await ensureMirrorTask(db, id);
   revalidatePath(REV);
+  revalidatePath("/tarefas");
 }
 
 export async function deletePost(id: string) {
@@ -254,23 +283,18 @@ export async function deleteComment(id: string) {
 
 /* ------------------------------------------------------------------ artes (Storage) */
 
-export async function uploadAsset(formData: FormData) {
+/**
+ * Registra uma arte (imagem ou vídeo) que o browser já subiu direto pro
+ * bucket `social` — o arquivo não passa pelo server action, senão vídeo
+ * estoura o limite de body do Next (1 MB) e da Vercel (4.5 MB).
+ */
+export async function registerAsset(postId: string, format: string, path: string) {
   await guard();
-  const db = await createUntypedClient();
-  const postId = String(formData.get("post_id") ?? "");
-  const format = String(formData.get("format") ?? "feed_1_1");
-  const file = formData.get("file");
-  if (!postId || !(file instanceof File) || file.size === 0) {
+  // path gerado no client como `${postId}/${uuid}.${ext}` — não aceita outro
+  if (!postId || !/^[\w-]+\/[\w-]+\.[a-z0-9]{1,5}$/i.test(path) || !path.startsWith(`${postId}/`)) {
     throw new Error("Arquivo inválido.");
   }
-  if (file.size > 12 * 1024 * 1024) throw new Error("Máximo 12 MB.");
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 5);
-  // path aleatório: bucket é read-público, não pode ser enumerável (Régie #2)
-  const path = `${postId}/${randomUUID()}.${ext}`;
-  const { error: upErr } = await db.storage
-    .from("social")
-    .upload(path, file, { contentType: file.type || undefined, upsert: false });
-  if (upErr) throw new Error(upErr.message);
+  const db = await createUntypedClient();
   const { data: pub } = db.storage.from("social").getPublicUrl(path);
   const { error: insErr } = await db.from("social_post_assets").insert({
     post_id: postId,
@@ -279,7 +303,9 @@ export async function uploadAsset(formData: FormData) {
     sort: Date.now() % 100000,
   });
   if (insErr) throw new Error(insErr.message);
+  await ensureMirrorTask(db, postId);
   revalidatePath(REV);
+  revalidatePath("/tarefas");
 }
 
 export async function deleteAsset(id: string) {

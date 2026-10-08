@@ -9,6 +9,7 @@ import {
   STATUS_META,
 } from "@/app/(app)/calendario-social/social-constants";
 import { createClient } from "@/lib/supabase/client";
+import { SocialMedia } from "./social-media";
 
 interface PubComment {
   id: string;
@@ -216,11 +217,10 @@ export function SocialPublicView({
                     {p.assets[0] && (
                       <div className="bg-surface-2 flex gap-2 overflow-x-auto p-2">
                         {p.assets.map((a) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <SocialMedia
                             key={a.id}
                             src={a.image_url}
-                            alt=""
+                            controls
                             className="max-h-80 rounded-lg object-contain"
                           />
                         ))}
