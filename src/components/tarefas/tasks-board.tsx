@@ -916,12 +916,16 @@ interface Filters {
   priority: string | null;
   status: string | null;
   clientId: string | null;
+  // user_id, ou NO_ASSIGNEE pra tasks sem ninguém atribuído
+  assigneeId: string | null;
   period: "all" | "week" | "month" | "none";
 }
+const NO_ASSIGNEE = "__none";
 const NO_FILTERS: Filters = {
   priority: null,
   status: null,
   clientId: null,
+  assigneeId: null,
   period: "all",
 };
 type Quick = "minhas" | "hoje" | "atrasadas";
@@ -1047,6 +1051,7 @@ export function TasksBoard({
     !!filters.priority ||
     !!filters.status ||
     !!filters.clientId ||
+    !!filters.assigneeId ||
     filters.period !== "all" ||
     quick.size > 0;
 
@@ -1088,6 +1093,13 @@ export function TasksBoard({
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.status && t.status !== filters.status) return false;
       if (filters.clientId && t.clientId !== filters.clientId) return false;
+      if (filters.assigneeId === NO_ASSIGNEE) {
+        if (t.assignees.length) return false;
+      } else if (
+        filters.assigneeId &&
+        !t.assignees.includes(filters.assigneeId)
+      )
+        return false;
       if (filters.period === "none" && t.dueDate) return false;
       if (filters.period === "week") {
         if (!t.dueDate) return false;
@@ -1118,6 +1130,11 @@ export function TasksBoard({
       return true;
     });
   }, [visibleTasks, filters, quick, currentUserId, todayIso]);
+
+  const assigneeFilterOptions = useMemo(
+    () => [...people].sort((a, b) => a.name.localeCompare(b.name)),
+    [people],
+  );
 
   const clearFilters = () => {
     setFilters(NO_FILTERS);
@@ -1495,6 +1512,22 @@ export function TasksBoard({
                 {c.name}
               </option>
             ))}
+          </select>
+
+          <select
+            value={filters.assigneeId ?? ""}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, assigneeId: e.target.value || null }))
+            }
+            className="border-line-strong h-7 rounded-md border bg-transparent px-1.5 outline-none"
+          >
+            <option value="">Responsável</option>
+            {assigneeFilterOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+            <option value={NO_ASSIGNEE}>Sem responsável</option>
           </select>
 
           <select
