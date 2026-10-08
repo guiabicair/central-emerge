@@ -1692,7 +1692,19 @@ export function TasksBoard({
               detail={editingRow}
               statuses={cols}
               people={people}
-              clients={clients}
+              // cliente legado da tarefa (fora da lista curada) ainda aparece
+              // no select — senão o form mostra "sem cliente" e salvar apaga
+              clients={
+                editing.clientId && !clients.some((c) => c.id === editing.clientId)
+                  ? [
+                      ...clients,
+                      {
+                        id: editing.clientId,
+                        name: editingRow?.clientName ?? "Cliente legado",
+                      },
+                    ]
+                  : clients
+              }
               onClose={() => {
                 setEditing(null);
                 setEditingRow(null);

@@ -31,6 +31,14 @@ async function guard() {
 
 const REV = "/calendario-social";
 
+type Db = Awaited<ReturnType<typeof createUntypedClient>>;
+
+/** "reels_9_16" → "Reels 9:16" */
+const formatLabel = (format: string) =>
+  format
+    .replace(/_(\d+)_(\d+)$/, " $1:$2")
+    .replace(/^\w/, (c) => c.toUpperCase());
+
 /* ------------------------------------------------------------------ projetos */
 
 export async function createProject(name: string, color: string) {
@@ -145,7 +153,15 @@ async function createMirrorTask(
   title: string,
   date: string,
   userId: string | null,
+  projectId: string,
 ) {
+  // tarefa herda o cliente do projeto social
+  const { data: proj } = await db
+    .from("social_projects")
+    .select("client_id")
+    .eq("id", projectId)
+    .single();
+  const clientId = (proj as { client_id: string | null } | null)?.client_id ?? null;
   const { data: cols } = await db
     .from("task_statuses")
     .select("name, position")
@@ -159,6 +175,7 @@ async function createMirrorTask(
       status: fallbackStatus,
       priority: "medium",
       due_date: date,
+      client_id: clientId,
       created_by: userId,
     })
     .select("id")
@@ -177,14 +194,46 @@ async function ensureMirrorTask(
 ) {
   const { data } = await db
     .from("social_posts")
-    .select("title, date, task_id")
+    .select("title, date, task_id, project_id")
     .eq("id", postId)
     .single();
-  const post = data as { title: string; date: string; task_id: string | null } | null;
+  const post = data as {
+    title: string;
+    date: string;
+    task_id: string | null;
+    project_id: string;
+  } | null;
   if (!post || post.task_id) return;
   const user = await getUser();
-  const taskId = await createMirrorTask(db, post.title, post.date, user?.id ?? null);
+  const taskId = await createMirrorTask(db, post.title, post.date, user?.id ?? null, post.project_id);
   if (taskId) await db.from("social_posts").update({ task_id: taskId }).eq("id", postId);
+}
+
+/**
+ * Arte enviada no post também aparece na tarefa vinculada (anexo), e a
+ * pasta do post no Drive vira o link "Drive" da tarefa se ela não tiver um.
+ */
+async function attachArtToTask(
+  db: Db,
+  postId: string,
+  url: string,
+  label: string,
+  driveFolderUrl: string | null,
+) {
+  await ensureMirrorTask(db, postId);
+  const { data } = await db.from("social_posts").select("task_id").eq("id", postId).single();
+  const taskId = (data as { task_id: string | null } | null)?.task_id;
+  if (!taskId) return;
+  const user = await getUser();
+  await db.from("task_attachments").insert({
+    task_id: taskId,
+    url,
+    label,
+    added_by: user?.id ?? null,
+  });
+  if (driveFolderUrl) {
+    await db.from("tasks").update({ drive_link: driveFolderUrl }).eq("id", taskId).is("drive_link", null);
+  }
 }
 
 export async function createPost(projectId: string, input: PostInput) {
@@ -194,7 +243,13 @@ export async function createPost(projectId: string, input: PostInput) {
 
   let taskId = input.task_id || null;
   if (!taskId) {
-    taskId = await createMirrorTask(db, input.title.trim() || "(sem título)", input.date, user?.id ?? null);
+    taskId = await createMirrorTask(
+      db,
+      input.title.trim() || "(sem título)",
+      input.date,
+      user?.id ?? null,
+      projectId,
+    );
   }
 
   const { data, error } = await db
@@ -313,14 +368,13 @@ export async function registerAsset(postId: string, format: string, path: string
     sort: Date.now() % 100000,
   });
   if (insErr) throw new Error(insErr.message);
-  await ensureMirrorTask(db, postId);
+  await attachArtToTask(db, postId, pub.publicUrl, `Arte · ${formatLabel(format)}`, null);
   revalidatePath(REV);
   revalidatePath("/tarefas");
 }
 
 /* ------------------------------------------------------------------ artes (Google Drive) */
 
-type Db = Awaited<ReturnType<typeof createUntypedClient>>;
 
 /**
  * Pasta do post no Drive: <raiz>/<cliente>/Social/<data – título>. Usa a
@@ -441,7 +495,13 @@ export async function finishDriveUpload(
       sort: Date.now() % 100000,
     });
     if (error) return { error: error.message };
-    await ensureMirrorTask(db, postId);
+    await attachArtToTask(
+      db,
+      postId,
+      driveViewUrl(f.id),
+      `Arte · ${formatLabel(format)} · ${f.name}`,
+      `https://drive.google.com/drive/folders/${folder}`,
+    );
     revalidatePath(REV);
     revalidatePath("/tarefas");
     return {};
